@@ -141,7 +141,19 @@ final class UpdateCoordinator {
     private func job(for state: SourceState, items: [OutdatedItem]) -> UpgradeHandoff.Job? {
         guard let source = sources[state.id] else { return nil }
         let base = source.upgradeCommand(items)
-        let command = state.requiresAdmin ? "sudo \(base)" : base
+        let command: String
+        if state.requiresAdmin {
+            if SudoCredential.hasPassword {
+                // Feed the Keychain-stored password straight into `sudo -S` via a
+                // here-string; `-p ''` silences sudo's own prompt. The plaintext
+                // is fetched at runtime and never written into the script.
+                command = "sudo -S -p '' \(base) <<< \"$(\(SudoCredential.shellRetrieval))\""
+            } else {
+                command = "sudo \(base)"
+            }
+        } else {
+            command = base
+        }
         return UpgradeHandoff.Job(label: state.displayName, command: command)
     }
 

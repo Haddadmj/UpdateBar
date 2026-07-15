@@ -7,6 +7,9 @@ struct SettingsView: View {
     @State private var launchAtLogin = LoginItemManager.isRegistered
     @State private var loginError: String?
 
+    @State private var adminPassword = ""
+    @State private var passwordSaved = SudoCredential.hasPassword
+
     private let intervals: [(label: String, hours: Int)] = [
         ("Manual only", 0),
         ("Every hour", 1),
@@ -55,6 +58,41 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundStyle(.red)
                 }
+            }
+
+            Section {
+                if passwordSaved {
+                    HStack {
+                        Label("Admin password saved", systemImage: "checkmark.shield.fill")
+                            .foregroundStyle(.green)
+                        Spacer()
+                        Button("Remove") {
+                            SudoCredential.clear()
+                            adminPassword = ""
+                            passwordSaved = false
+                        }
+                    }
+                } else {
+                    HStack {
+                        SecureField("Admin password", text: $adminPassword)
+                            .textFieldStyle(.roundedBorder)
+                        Button("Save") {
+                            if SudoCredential.store(adminPassword) {
+                                adminPassword = ""
+                                passwordSaved = true
+                            }
+                        }
+                        .disabled(adminPassword.isEmpty)
+                    }
+                }
+            } header: {
+                Text("Admin password")
+            } footer: {
+                Text("Stored securely in your Keychain and used for updates that "
+                    + "require administrator access (macOS, Mac App Store, gem), so "
+                    + "you won't be prompted in Terminal. Leave empty to be prompted each time.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Sources") {
