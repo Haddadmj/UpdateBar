@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import UniformTypeIdentifiers
+import os
 
 /// Runs upgrade commands in a terminal by writing a temporary `.command` script and
 /// opening it with LaunchServices (`open`).
@@ -27,11 +28,11 @@ enum UpgradeHandoff {
 
         var lines = ["#!/bin/zsh", ProcessRunner.shellPrelude]
         for job in jobs {
-            lines.append("echo \(singleQuoted("==> \(job.label)"))")
+            lines.append("echo \(ShellQuoting.singleQuoted("==> \(job.label)"))")
             lines.append(job.command)
             lines.append("echo")
         }
-        lines.append("echo \(singleQuoted("[UpdateBar] Finished — press any key to close."))")
+        lines.append("echo \(ShellQuoting.singleQuoted("[UpdateBar] Finished — press any key to close."))")
         lines.append("read -k1 -s")
         lines.append(#"rm -f "$0""#)
 
@@ -39,8 +40,6 @@ enum UpgradeHandoff {
     }
 
     // MARK: Helpers
-
-    private static func singleQuoted(_ s: String) -> String { ShellQuoting.singleQuoted(s) }
 
     private static func openScript(_ contents: String) {
         let dir = FileManager.default.temporaryDirectory
@@ -62,16 +61,18 @@ enum UpgradeHandoff {
                 [url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()
             )
         } catch {
-            NSLog("UpdateBar: failed to write upgrade script: \(error.localizedDescription)")
+            Logger(subsystem: "com.updatebar.app", category: "upgrade")
+                .error("could not write upgrade script: \(error.localizedDescription, privacy: .private)")
         }
     }
 }
 
+@MainActor
 enum TerminalApps {
     /// The system handler for `.command` files — a real choice, and not the same
     /// as naming that app explicitly, because it follows the user's own default
     /// if they change it later.
-    static let systemDefault = "Default"
+    nonisolated static let systemDefault = "Default"
 
     /// Installed terminals — apps that will actually *run* a `.command` file.
     ///
@@ -109,11 +110,14 @@ enum TerminalApps {
     /// The rule itself, split from the bundle read so it can be tested against
     /// captured `Info.plist` fragments rather than whatever is installed.
     ///
+    /// Not widened to "declares a script type in any role": Instruments declares
+    /// `public.unix-executable` and is not a terminal.
+    ///
     /// Any `Shell` role counts, not one on a specific type: Terminal declares it
     /// for `com.apple.terminal.shell-script`, while WezTerm declares only
     /// `Editor` there and takes `Shell` on `public.unix-executable`. Requiring a
     /// particular type would have excluded the app this whole change exists for.
-    static func declaresShellRole(documentTypes: [[String: Any]]) -> Bool {
+    nonisolated static func declaresShellRole(documentTypes: [[String: Any]]) -> Bool {
         documentTypes.contains { ($0["CFBundleTypeRole"] as? String) == "Shell" }
     }
 
@@ -123,7 +127,7 @@ enum TerminalApps {
 
     /// The naming rule, split from the machine-dependent query above so it can
     /// be tested without depending on what happens to be installed.
-    static func names(for handlers: [URL]) -> [String] {
+    nonisolated static func names(for handlers: [URL]) -> [String] {
         var seen = Set<String>()
         let apps = handlers
             .map { $0.deletingPathExtension().lastPathComponent }
@@ -135,7 +139,7 @@ enum TerminalApps {
     /// The bundle a stored preference names, or nil to mean "use the system
     /// handler" — which covers both `Default` and an app that has since been
     /// uninstalled. A preference outlives the app it names.
-    static func resolve(_ name: String, in handlers: [URL]) -> URL? {
+    nonisolated static func resolve(_ name: String, in handlers: [URL]) -> URL? {
         guard !name.isEmpty, name != systemDefault else { return nil }
         return handlers.first { $0.deletingPathExtension().lastPathComponent == name }
     }

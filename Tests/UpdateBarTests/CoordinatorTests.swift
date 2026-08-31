@@ -32,15 +32,52 @@ private final class FakePreferences: SourcePreferences {
     func isEnabled(_ sourceID: String) -> Bool { !disabled.contains(sourceID) }
 }
 
+private struct FakeCredential: PrivilegedCredential {
+    let hasPassword: Bool
+    var shellRetrieval: String { "echo stub-password" }
+}
+
 @MainActor
 final class CoordinatorTests: XCTestCase {
 
     private func coordinator(
         _ sources: [any UpdateSource],
         prefs: FakePreferences = FakePreferences(),
-        notifier: RecordingNotifier = RecordingNotifier()
+        notifier: RecordingNotifier = RecordingNotifier(),
+        credential: FakeCredential = FakeCredential(hasPassword: false)
     ) -> UpdateCoordinator {
-        UpdateCoordinator(sources: sources, preferences: prefs, notifier: notifier)
+        UpdateCoordinator(
+            sources: sources, preferences: prefs, notifier: notifier, credential: credential
+        )
+    }
+
+    /// The admin path builds the sharpest command in the app and previously
+    /// could not be tested at all, because reaching it meant touching the real
+    /// Keychain.
+    func testAdminUpgradePipesTheStoredPasswordIntoSudo() async {
+        let subject = coordinator(
+            [AdminSource(id: "mas")], credential: FakeCredential(hasPassword: true)
+        )
+        await subject.bootstrap()
+        let command = subject.previewUpgradeCommand(sourceID: "mas")
+
+        XCTAssertEqual(command, "sudo -S -p '' mas upgrade <<< \"$(echo stub-password)\"")
+    }
+
+    /// Without a stored password `sudo` must prompt in the terminal — which is
+    /// also the path Touch ID takes over.
+    func testAdminUpgradeWithoutAPasswordJustUsesSudo() async {
+        let subject = coordinator(
+            [AdminSource(id: "mas")], credential: FakeCredential(hasPassword: false)
+        )
+        await subject.bootstrap()
+        XCTAssertEqual(subject.previewUpgradeCommand(sourceID: "mas"), "sudo mas upgrade")
+    }
+
+    func testNonAdminUpgradeIsNotElevated() async {
+        let subject = coordinator([FakeSource(id: "a", displayName: "A", items: [])])
+        await subject.bootstrap()
+        XCTAssertEqual(subject.previewUpgradeCommand(sourceID: "a"), "echo a")
     }
 
     func testConstructibleWithFakeSources() async {
@@ -159,4 +196,16 @@ private final class MutableSource: UpdateSource, @unchecked Sendable {
     func isAvailable() async -> Bool { true }
     func checkOutdated() async throws -> [OutdatedItem] { items }
     func upgradeCommand(_ items: [OutdatedItem]) -> String { "echo \(id)" }
+}
+
+/// A source that needs admin rights, so the coordinator wraps it in `sudo`.
+private struct AdminSource: UpdateSource {
+    let id: String
+    var displayName: String { id.uppercased() }
+    let iconSystemName = "circle"
+    var requiresAdmin: Bool { true }
+
+    func isAvailable() async -> Bool { true }
+    func checkOutdated() async throws -> [OutdatedItem] { [] }
+    func upgradeCommand(_ items: [OutdatedItem]) -> String { "\(id) upgrade" }
 }

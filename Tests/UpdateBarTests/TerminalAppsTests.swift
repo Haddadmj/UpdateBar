@@ -86,6 +86,17 @@ final class TerminalAppsTests: XCTestCase {
         XCTAssertFalse(TerminalApps.declaresShellRole(documentTypes: []))
     }
 
+    /// Why the rule is not "declares any script type in any role": Instruments
+    /// declares `public.unix-executable` and is not a terminal. Widening to
+    /// admit an Editor-role terminal would admit that too, which is why the
+    /// `Shell` role stays the discriminator.
+    func testViewerOfExecutablesIsNotATerminal() {
+        let instrumentsShaped: [[String: Any]] = [
+            ["CFBundleTypeRole": "Viewer", "LSItemContentTypes": ["public.unix-executable"]]
+        ]
+        XCTAssertFalse(TerminalApps.declaresShellRole(documentTypes: instrumentsShaped))
+    }
+
     /// A stored preference outlives the app it names. Resolving must fail
     /// cleanly so the caller can fall back to the system handler, rather than
     /// opening nothing at all.

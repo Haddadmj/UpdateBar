@@ -29,8 +29,12 @@ final class AppPreferences: SourcePreferences {
         static let terminalApp = "terminalApp"
     }
 
-    /// Which terminal app runs upgrades. Empty/"Default" uses the system default handler
-    /// for `.command` files; otherwise the app name passed to `open -a` (e.g. "Warp").
+    /// Which terminal app runs upgrades, stored by name (e.g. "WezTerm").
+    /// Empty or "Default" means the system handler for `.command` files.
+    ///
+    /// A name rather than a path so an existing setting survives the app moving;
+    /// `TerminalApps.resolve` turns it back into a bundle URL at launch time and
+    /// falls back to the system handler when it no longer resolves.
     var terminalApp: String {
         didSet { defaults.set(terminalApp, forKey: Key.terminalApp) }
     }

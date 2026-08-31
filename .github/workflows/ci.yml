@@ -5,7 +5,6 @@ name: CI
 # cannot run on a clean runner is a check that gets disabled within a month.
 on:
   push:
-  pull_request:
 
 jobs:
   test:

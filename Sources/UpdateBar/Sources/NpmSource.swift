@@ -14,16 +14,29 @@ struct NpmSource: UpdateSource {
     func checkOutdated() async throws -> [OutdatedItem] {
         // `npm outdated` exits non-zero when packages are outdated — that's expected.
         let result = try await runner.runShell("npm outdated -g --json", timeout: 120)
-        return Self.parse(result.stdout)
+        guard let items = Self.parse(result.stdout) else {
+            throw SourceError.parse(displayName, result.stderr.isEmpty ? result.stdout : result.stderr)
+        }
+        return items
     }
 
     /// Decodes `npm outdated -g --json`, an object keyed by package name.
-    /// Empty output and `{}` both mean everything is current.
-    static func parse(_ output: String) -> [OutdatedItem] {
-        guard let json = JSONExtractor.extract(output), json != "{}",
-            let data = json.data(using: .utf8),
+    ///
+    /// Empty output and `{}` are an empty list — everything is current. Nil is
+    /// reserved for output that could not be read at all, which must not be
+    /// reported as "no updates": that is the worst possible answer, because it
+    /// looks like good news.
+    static func parse(_ output: String) -> [OutdatedItem]? {
+        // No output at all is npm's way of saying nothing is outdated. Output
+        // that exists but holds no JSON is a failure — `npm ERR! code E401` is
+        // not an empty update list.
+        let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        guard let json = JSONExtractor.extract(trimmed) else { return nil }
+        guard json != "{}" else { return [] }
+        guard let data = json.data(using: .utf8),
             let decoded = try? JSONDecoder().decode([String: Entry].self, from: data)
-        else { return [] }
+        else { return nil }
         return decoded.map { name, entry in
             OutdatedItem(
                 identifier: name,

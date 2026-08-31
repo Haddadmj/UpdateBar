@@ -31,6 +31,7 @@ final class UpdateCoordinator {
     private var sources: [String: any UpdateSource] = [:]
     private let prefs: any SourcePreferences
     private let notifier: any UpdateNotifier
+    private let credential: any PrivilegedCredential
     /// A menu-bar app refreshes with no window to report into, so when checks
     /// quietly stop — a timer that never re-armed, a source failing every time —
     /// there is nothing to look at afterwards.
@@ -49,12 +50,14 @@ final class UpdateCoordinator {
         sources: [any UpdateSource]? = nil,
         runner: any CommandRunner = ProcessRunner(),
         preferences: any SourcePreferences = AppPreferences.shared,
-        notifier: any UpdateNotifier = SystemNotifier()
+        notifier: any UpdateNotifier = SystemNotifier(),
+        credential: any PrivilegedCredential = KeychainCredential()
     ) {
         self.providedSources = sources
         self.runner = runner
         self.prefs = preferences
         self.notifier = notifier
+        self.credential = credential
     }
 
     /// Identifiers seen on the previous refresh, for new-update notifications.
@@ -158,18 +161,30 @@ final class UpdateCoordinator {
         notifyIfNewUpdates()
     }
 
-    /// One line per refresh, naming every source and what it said. A source that
-    /// fails names itself and its error, so "why does the badge say nothing" is
-    /// answerable after the fact rather than only while it is happening.
+    /// One line per refresh, so "why does the badge say nothing" is answerable
+    /// after the fact rather than only while it is happening.
+    ///
+    /// Source names and counts are public; a failure's *text* is not. That text
+    /// is `error.localizedDescription`, and a source builds it from raw stderr —
+    /// an `npm outdated` that fails on registry auth can echo a `_authToken`,
+    /// and the unified log is readable by anything that can run `log show`.
+    /// Truncating it was not redaction. Which source failed is the part worth
+    /// seeing without a fuss; the detail is there under `--info` for whoever is
+    /// actually debugging.
     private func report() {
-        let summary = states.map { state -> String in
+        let outcomes = states.map { state -> String in
             switch state.status {
-            case .failed(let message): return "\(state.id): failed (\(message.prefix(80)))"
+            case .failed: return "\(state.id): failed"
             case .checking: return "\(state.id): still checking"
             default: return "\(state.id): \(state.count)"
             }
         }.joined(separator: ", ")
-        log.notice("refresh: \(summary, privacy: .public)")
+        log.notice("refresh: \(outcomes, privacy: .public)")
+
+        for state in states {
+            guard case let .failed(message) = state.status else { continue }
+            log.info("\(state.id, privacy: .public) failed: \(message, privacy: .private)")
+        }
     }
 
     /// Diff current updates against the last refresh and notify about newcomers.
@@ -199,11 +214,11 @@ final class UpdateCoordinator {
         let base = source.upgradeCommand(items)
         let command: String
         if state.requiresAdmin {
-            if SudoCredential.hasPassword {
+            if credential.hasPassword {
                 // Feed the Keychain-stored password straight into `sudo -S` via a
                 // here-string; `-p ''` silences sudo's own prompt. The plaintext
                 // is fetched at runtime and never written into the script.
-                command = "sudo -S -p '' \(base) <<< \"$(\(SudoCredential.shellRetrieval))\""
+                command = "sudo -S -p '' \(base) <<< \"$(\(credential.shellRetrieval))\""
             } else {
                 command = "sudo \(base)"
             }
@@ -211,6 +226,15 @@ final class UpdateCoordinator {
             command = base
         }
         return UpgradeHandoff.Job(label: state.displayName, command: command)
+    }
+
+    /// The command a source's upgrade would run, without running it.
+    ///
+    /// Exists so the elevation decision — which is the sharpest string this app
+    /// composes — can be asserted rather than eyeballed in a terminal window.
+    func previewUpgradeCommand(sourceID: String, items: [OutdatedItem] = []) -> String? {
+        guard let state = states.first(where: { $0.id == sourceID }) else { return nil }
+        return job(for: state, items: items)?.command
     }
 
     /// Run a single source's upgrade in Terminal. Upgrades always run in a real Terminal

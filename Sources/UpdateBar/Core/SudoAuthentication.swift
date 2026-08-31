@@ -5,8 +5,8 @@ import Foundation
 /// Worth knowing because it makes the stored admin password pointless. Touch ID
 /// needs no support from UpdateBar — the no-password path already emits a plain
 /// `sudo`, and `sudo` is what raises the prompt — so the only thing to change is
-/// that the app should stop *offering* to store a credential that now buys
-/// nothing and costs the exposure in ticket 07.
+/// that the app should stop *offering* to store a credential that buys nothing
+/// and leaves a readable copy of the login password in the Keychain.
 enum SudoAuthentication {
     /// Apple's `/etc/pam.d/sudo` includes this file first, specifically so the
     /// setting survives a system update. World-readable, so no privilege is
@@ -36,7 +36,9 @@ enum SudoAuthentication {
             guard !trimmed.hasPrefix("#") else { return false }
             // A trailing comment does not disable the directive before it.
             let directive = trimmed.split(separator: "#", maxSplits: 1).first.map(String.init) ?? ""
-            let fields = directive.split(separator: " ", omittingEmptySubsequences: true)
+            // PAM separates fields by any whitespace, and snippets are pasted
+            // with tabs as often as spaces.
+            let fields = directive.split(whereSeparator: \.isWhitespace)
             guard fields.first == "auth" else { return false }
             return fields.contains { $0.hasSuffix("pam_tid.so") }
         }

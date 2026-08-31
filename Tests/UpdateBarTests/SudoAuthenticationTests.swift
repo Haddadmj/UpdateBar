@@ -2,9 +2,9 @@ import XCTest
 
 @testable import UpdateBar
 
-/// The rule is tested; the machine's `/etc` is not. Same split as ticket 01 —
-/// what a file says is a property of its text, and reading `/etc/pam.d` in a
-/// test would make the suite depend on how this Mac happens to be configured.
+/// The rule is tested; the machine's `/etc` is not. What a file says is a
+/// property of its text, and reading `/etc/pam.d` in a test would make the suite
+/// depend on how this Mac happens to be configured.
 final class SudoAuthenticationTests: XCTestCase {
 
     /// Apple's shipped template, verbatim. Its `pam_tid` line is commented out,
@@ -52,6 +52,18 @@ final class SudoAuthenticationTests: XCTestCase {
     func testTrailingCommentOnALiveLine() {
         XCTAssertTrue(SudoAuthentication.enablesTouchID(
             pamConfiguration: "auth sufficient pam_tid.so # touch id for sudo"
+        ))
+    }
+
+    /// PAM separates fields by any whitespace, and published snippets are
+    /// frequently pasted with tabs. Splitting on spaces alone read a working
+    /// configuration as off.
+    func testTabSeparatedFieldsAreRead() {
+        XCTAssertTrue(SudoAuthentication.enablesTouchID(
+            pamConfiguration: "auth\tsufficient\tpam_tid.so"
+        ))
+        XCTAssertTrue(SudoAuthentication.enablesTouchID(
+            pamConfiguration: "auth \t sufficient \t pam_tid.so"
         ))
     }
 

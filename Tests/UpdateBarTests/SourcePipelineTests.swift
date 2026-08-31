@@ -22,7 +22,12 @@ final actor StubRunner: CommandRunner {
 
     func runShell(_ command: String, timeout: TimeInterval) async throws -> ProcessResult {
         commands.append(command)
-        guard let match = responses.first(where: { command.contains($0.match) }) else {
+        // An empty pattern means "anything": `"abc".contains("")` is false in
+        // Swift, so matching on it alone silently fell through to the default
+        // below — which returned a *successful* empty result, and quietly made
+        // every stub built that way a no-op.
+        guard let match = responses.first(where: { $0.match.isEmpty || command.contains($0.match) })
+        else {
             return ProcessResult(stdout: "", stderr: "", exitCode: 0)
         }
         return try match.result.get()
@@ -94,9 +99,20 @@ final class SourcePipelineTests: XCTestCase {
         }
     }
 
+    /// This previously fired an unawaited Task and asserted nothing, so it could
+    /// not fail. It now checks the probe actually runs and what it asks.
     func testAvailabilityProbeUsesCommandV() async {
         let runner = StubRunner.succeeding("/opt/homebrew/bin/brew")
-        let source = HomebrewSource(runner: runner)
-        Task { _ = await source.isAvailable() }
+        let available = await HomebrewSource(runner: runner).isAvailable()
+
+        XCTAssertTrue(available)
+        let commands = await runner.commands
+        XCTAssertEqual(commands, ["command -v brew"], "the exact command, not a substring")
+    }
+
+    func testAvailabilityIsFalseWhenTheToolIsAbsent() async {
+        let runner = StubRunner([("", .success(ProcessResult(stdout: "", stderr: "", exitCode: 1)))])
+        let available = await HomebrewSource(runner: runner).isAvailable()
+        XCTAssertFalse(available)
     }
 }

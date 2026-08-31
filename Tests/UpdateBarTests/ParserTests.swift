@@ -120,7 +120,7 @@ final class ParserTests: XCTestCase {
     }
 }
 
-// MARK: - Ticket 03: the last three sources
+// MARK: - The sources that used to decode inline
 
 /// Homebrew is the default source with the most complex payload — two arrays,
 /// snake_case keys, `installed_versions` as a list — and it was the one with no
@@ -157,12 +157,12 @@ final class RemainingParserTests: XCTestCase {
         XCTAssertEqual(items?.first?.latestVersion, "1.8")
     }
 
-    func testNpmParsesKeyedObject() {
+    func testNpmParsesKeyedObject() throws {
         let json = """
         {"typescript":{"current":"5.4.0","latest":"5.9.2"},
          "pnpm":{"current":"9.0.0","latest":"10.2.0"}}
         """
-        let items = NpmSource.parse(json)
+        let items = try XCTUnwrap(NpmSource.parse(json))
         XCTAssertEqual(items.map(\.identifier), ["pnpm", "typescript"], "sorted by name")
         XCTAssertEqual(items.first { $0.identifier == "typescript" }?.latestVersion, "5.9.2")
     }
@@ -170,16 +170,23 @@ final class RemainingParserTests: XCTestCase {
     /// npm prints `{}` when everything is current, and nothing at all in some
     /// versions. Both mean "up to date", neither is an error.
     func testNpmEmptyShapes() {
-        XCTAssertTrue(NpmSource.parse("{}").isEmpty)
-        XCTAssertTrue(NpmSource.parse("").isEmpty)
+        XCTAssertEqual(NpmSource.parse("{}")?.isEmpty, true)
+        XCTAssertEqual(NpmSource.parse("")?.isEmpty, true)
+    }
+
+    /// A truncated or corrupt body is a failed check, not a healthy one. Reading
+    /// it as "0 updates" is the worst possible answer: it looks like good news.
+    func testNpmCorruptBodyIsNotUpToDate() {
+        XCTAssertNil(NpmSource.parse(#"{"typescript":{"current":"5.4.0","lat"#))
+        XCTAssertNil(NpmSource.parse("npm ERR! code E401"))
     }
 
     /// A package that is installed but has no published `latest` — npm omits the
     /// field rather than sending null.
     func testNpmPackageWithoutLatest() {
         let items = NpmSource.parse(#"{"private-tool":{"current":"1.0.0"}}"#)
-        XCTAssertEqual(items.count, 1)
-        XCTAssertNil(items.first?.latestVersion)
+        XCTAssertEqual(items?.count, 1)
+        XCTAssertNil(items?.first?.latestVersion)
     }
 
     /// `gem search -r -e rubygems-update` prints `rubygems-update (4.0.16)`.

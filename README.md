@@ -85,7 +85,7 @@ Look for the ⤓ / ✓ icon in the menu bar. During development you can also:
 
 ```bash
 swift build
-swift test          # runs the parser unit tests
+swift test          # parsers, sources, coordinator, quoting, terminal + PAM detection
 ```
 
 ## Usage
@@ -102,7 +102,10 @@ Sources/UpdateBar/
 │   ├── ProcessRunner.swift      # runs CLIs via a deterministic non-interactive shell
 │   ├── UpdateSource.swift       # the plugin protocol — add a manager = add one file
 │   ├── UpdateCoordinator.swift  # @MainActor @Observable state; concurrent checks via TaskGroup
-│   └── UpgradeHandoff.swift     # writes .command scripts, opens them in your terminal
+│   ├── UpgradeHandoff.swift     # writes .command scripts, opens them in your terminal
+│   ├── ShellQuoting.swift       # quoting for values that enter a generated command
+│   ├── SudoCredential.swift     # the admin password, behind a protocol
+│   └── SudoAuthentication.swift # whether sudo authenticates with Touch ID
 ├── Sources/*Source.swift        # one plugin per package manager (parsers unit-tested)
 ├── Models/OutdatedItem.swift    # per-item / per-source state
 └── UI/
@@ -110,6 +113,16 @@ Sources/UpdateBar/
     ├── MenuContentView.swift     # the SwiftUI popover
     └── SettingsView.swift        # preferences window
 ```
+
+Sources depend on `CommandRunner`, not on `ProcessRunner`, so a source's whole
+path — the command it builds, the decode, the error mapping, the timeout — runs
+in tests against canned output with no package manager installed.
+
+If `sudo` on your Mac authenticates with Touch ID (one line in
+`/etc/pam.d/sudo_local`, see Apple's `sudo_local.template`), admin updates ask
+for a fingerprint and UpdateBar stores no password at all — which is the
+recommended setup, since a stored password is readable by anything running as
+you.
 
 Design principles:
 

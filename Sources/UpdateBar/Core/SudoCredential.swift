@@ -8,6 +8,23 @@ import Security
 /// The plaintext never touches disk: it lives encrypted in the Keychain, and
 /// the generated upgrade script retrieves it at runtime with the `security`
 /// CLI (see `shellRetrieval`), piping it straight into `sudo -S`.
+/// What the coordinator needs to build an admin upgrade command: whether a
+/// password exists, and the shell fragment that fetches it at runtime.
+///
+/// A protocol so building that command can be tested without a Keychain — the
+/// alternative is a test that either touches the real login keychain or skips
+/// the admin path entirely, and the admin path is the one with the sharp edges.
+protocol PrivilegedCredential: Sendable {
+    var hasPassword: Bool { get }
+    var shellRetrieval: String { get }
+}
+
+/// The real one, reading the login Keychain.
+struct KeychainCredential: PrivilegedCredential {
+    var hasPassword: Bool { SudoCredential.hasPassword }
+    var shellRetrieval: String { SudoCredential.shellRetrieval }
+}
+
 enum SudoCredential {
     /// Keychain generic-password service; also used by the `security` CLI lookup.
     static let service = "updatebar-sudo"
