@@ -1,10 +1,22 @@
 import Foundation
 import Observation
 
+/// The slice of settings the coordinator reads.
+///
+/// Narrower than `AppPreferences` on purpose: the coordinator has no business
+/// with the login item or the terminal choice, and a test should not have to
+/// supply them.
+@MainActor
+protocol SourcePreferences: AnyObject {
+    var refreshIntervalHours: Int { get }
+    var notifyOnNewUpdates: Bool { get }
+    func isEnabled(_ sourceID: String) -> Bool
+}
+
 /// User-facing settings, persisted to `UserDefaults` and observed by the UI.
 @MainActor
 @Observable
-final class AppPreferences {
+final class AppPreferences: SourcePreferences {
     static let shared = AppPreferences()
 
     private let defaults = UserDefaults.standard

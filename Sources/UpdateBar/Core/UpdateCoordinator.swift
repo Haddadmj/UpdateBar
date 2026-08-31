@@ -26,12 +26,36 @@ final class UpdateCoordinator {
     private(set) var isRefreshing = false
     private(set) var lastRefresh: Date?
 
-    private let runner: any CommandRunner = ProcessRunner()
+    private let runner: any CommandRunner
     private var sources: [String: any UpdateSource] = [:]
-    private let prefs = AppPreferences.shared
+    private let prefs: any SourcePreferences
+    private let notifier: any UpdateNotifier
+    /// Supplied by a test; nil means "probe this machine".
+    private let providedSources: [any UpdateSource]?
+
+    /// Defaults reproduce the previous behaviour exactly, so the app builds one
+    /// the same way it always did and only a test passes anything.
+    init(
+        sources: [any UpdateSource]? = nil,
+        runner: any CommandRunner = ProcessRunner(),
+        preferences: any SourcePreferences = AppPreferences.shared,
+        notifier: any UpdateNotifier = SystemNotifier()
+    ) {
+        self.providedSources = sources
+        self.runner = runner
+        self.prefs = preferences
+        self.notifier = notifier
+    }
 
     /// Identifiers seen on the previous refresh, for new-update notifications.
     private var previouslySeen: Set<String> = []
+    /// Whether a refresh has completed at all.
+    ///
+    /// Tracked rather than inferred from `previouslySeen` being empty. A machine
+    /// that is fully up to date on launch produces an empty first refresh, and
+    /// inferring would treat the *next* one as another first population — so the
+    /// first real update after a clean start went unannounced.
+    private var hasPopulated = false
     private var refreshTimer: Timer?
     private var hasBootstrapped = false
 
@@ -48,8 +72,8 @@ final class UpdateCoordinator {
     func bootstrap() async {
         guard !hasBootstrapped else { return }
         hasBootstrapped = true
-        NotificationManager.requestAuthorization()
-        let all = SourceRegistry.allSources(runner: runner)
+        notifier.requestAuthorization()
+        let all = providedSources ?? SourceRegistry.allSources(runner: runner)
         var available: [any UpdateSource] = []
         var notes: [String: String] = [:]
         for source in all where await source.isAvailable() {
@@ -126,15 +150,17 @@ final class UpdateCoordinator {
         let currentSet = Set(current)
         let newlyAppeared = currentSet.subtracting(previouslySeen)
 
-        // Don't fire on the very first population (previouslySeen empty).
-        if prefs.notifyOnNewUpdates && !previouslySeen.isEmpty && !newlyAppeared.isEmpty {
+        // Silent on the first population — otherwise every launch would announce
+        // everything already outstanding.
+        if prefs.notifyOnNewUpdates && hasPopulated && !newlyAppeared.isEmpty {
             let names = visibleStates
                 .flatMap { $0.items }
                 .filter { item in newlyAppeared.contains { $0.hasSuffix(":\(item.identifier)") } }
                 .map(\.name)
-            NotificationManager.notifyNewUpdates(count: newlyAppeared.count, sample: names)
+            notifier.notifyNewUpdates(count: newlyAppeared.count, sample: names)
         }
         previouslySeen = currentSet
+        hasPopulated = true
     }
 
     /// Build the (possibly `sudo`-prefixed) command for a source's upgrade.
