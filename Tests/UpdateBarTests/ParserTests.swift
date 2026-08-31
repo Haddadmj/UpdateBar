@@ -59,19 +59,20 @@ final class ParserTests: XCTestCase {
         XCTAssertEqual(items.first?.latestVersion, "v14.1.0")
     }
 
-    func testUpgradeCommands() {
+    func testUpgradeCommands() async {
         let runner = ProcessRunner()
         let label = OutdatedItem(identifier: "macOS Sequoia 15.6-24G84", name: "macOS Sequoia", currentVersion: nil, latestVersion: "15.6")
 
         // softwareupdate: specific label quoted; empty -> --all. Marked admin.
         let su = SoftwareUpdateSource(runner: runner)
-        XCTAssertTrue(su.requiresAdmin)
+        let suElevates = await su.requiresAdmin()
+        XCTAssertTrue(suElevates)
         XCTAssertEqual(su.upgradeCommand([label]), "softwareupdate --install 'macOS Sequoia 15.6-24G84'")
         XCTAssertEqual(su.upgradeCommand([]), "softwareupdate --install --all")
 
-        // gem: admin; names joined.
+        // gem: names quoted. Whether it elevates is an environment question now,
+        // covered in ElevationTests.
         let gem = GemSource(runner: runner)
-        XCTAssertTrue(gem.requiresAdmin)
         XCTAssertEqual(
             gem.upgradeCommand([OutdatedItem(identifier: "bundler", name: "bundler", currentVersion: "1", latestVersion: "4")]),
             "gem update 'bundler'",
@@ -79,11 +80,13 @@ final class ParserTests: XCTestCase {
         )
 
         // mas: now admin (mas 7 needs root).
-        XCTAssertTrue(MasSource(runner: runner).requiresAdmin)
+        let masElevates = await MasSource(runner: runner).requiresAdmin()
+        XCTAssertTrue(masElevates)
 
         // homebrew: not admin; command has no sudo.
         let brew = HomebrewSource(runner: runner)
-        XCTAssertFalse(brew.requiresAdmin)
+        let brewElevates = await brew.requiresAdmin()
+        XCTAssertFalse(brewElevates)
         XCTAssertEqual(brew.upgradeCommand([]), "brew upgrade")
     }
 

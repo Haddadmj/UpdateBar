@@ -11,9 +11,6 @@ protocol UpdateSource: Sendable {
     var displayName: String { get }
     /// SF Symbol used in the menu.
     var iconSystemName: String { get }
-    /// Whether upgrades need admin rights. Such upgrades are run in Terminal.app so the
-    /// user can authenticate, rather than in-process (which has no TTY for a password).
-    var requiresAdmin: Bool { get }
 
     /// Whether the underlying CLI exists on this machine.
     func isAvailable() async -> Bool
@@ -21,6 +18,14 @@ protocol UpdateSource: Sendable {
     /// Non-nil when the source is present but shouldn't be managed — the string explains
     /// why (shown as a dimmed, non-actionable row). Default: manageable (nil).
     func managementNote() async -> String?
+
+    /// Whether upgrades need admin rights. Such upgrades are run in Terminal.app so the
+    /// user can authenticate, rather than in-process (which has no TTY for a password).
+    ///
+    /// Asked rather than declared, and resolved once at bootstrap like
+    /// `managementNote()`, because for some sources the answer depends on where
+    /// the tool's files actually live rather than on which tool it is.
+    func requiresAdmin() async -> Bool
 
     /// Read-only check for outdated packages.
     func checkOutdated() async throws -> [OutdatedItem]
@@ -31,7 +36,7 @@ protocol UpdateSource: Sendable {
 }
 
 extension UpdateSource {
-    var requiresAdmin: Bool { false }
+    func requiresAdmin() async -> Bool { false }
 
     func managementNote() async -> String? { nil }
 

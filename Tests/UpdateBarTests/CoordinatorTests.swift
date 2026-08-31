@@ -203,7 +203,7 @@ private struct AdminSource: UpdateSource {
     let id: String
     var displayName: String { id.uppercased() }
     let iconSystemName = "circle"
-    var requiresAdmin: Bool { true }
+    func requiresAdmin() async -> Bool { true }
 
     func isAvailable() async -> Bool { true }
     func checkOutdated() async throws -> [OutdatedItem] { [] }

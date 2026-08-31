@@ -8,7 +8,7 @@ struct MasSource: UpdateSource {
     let displayName = "Mac App Store"
     let iconSystemName = "bag.fill"
     // mas 7+ requires root to install/upgrade apps, so we hand upgrades to Terminal.
-    let requiresAdmin = true
+    func requiresAdmin() async -> Bool { true }
     let runner: any CommandRunner
 
     func isAvailable() async -> Bool { await toolExists("mas", runner: runner) }

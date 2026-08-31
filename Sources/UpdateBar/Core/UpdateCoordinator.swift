@@ -89,9 +89,11 @@ final class UpdateCoordinator {
         let all = providedSources ?? SourceRegistry.allSources(runner: runner)
         var available: [any UpdateSource] = []
         var notes: [String: String] = [:]
+        var elevated: Set<String> = []
         for source in all where await source.isAvailable() {
             available.append(source)
             if let note = await source.managementNote() { notes[source.id] = note }
+            if await source.requiresAdmin() { elevated.insert(source.id) }
         }
         sources = Dictionary(uniqueKeysWithValues: available.map { ($0.id, $0) })
         states = available.map {
@@ -99,7 +101,7 @@ final class UpdateCoordinator {
                 id: $0.id,
                 displayName: $0.displayName,
                 iconSystemName: $0.iconSystemName,
-                requiresAdmin: $0.requiresAdmin,
+                requiresAdmin: elevated.contains($0.id),
                 note: notes[$0.id]
             )
         }

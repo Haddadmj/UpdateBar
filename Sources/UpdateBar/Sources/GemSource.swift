@@ -6,10 +6,17 @@ struct GemSource: UpdateSource {
     let id = "gem"
     let displayName = "RubyGems"
     let iconSystemName = "diamond.fill"
-    let requiresAdmin = true // system gem often needs sudo
     let runner: any CommandRunner
 
     func isAvailable() async -> Bool { await toolExists("gem", runner: runner) }
+
+    /// Only where root is genuinely needed.
+    ///
+    /// `sudo gem update` against a Homebrew or rbenv prefix writes root-owned
+    /// files into a user-owned tree. Nothing fails at the time; what fails is
+    /// every later user-level gem install, and `brew doctor` starts reporting
+    /// files that have to be chowned back by hand.
+    func requiresAdmin() async -> Bool { await RubyEnvironment.requiresSudo(runner: runner) }
 
     /// Apple's system Ruby (/usr/bin/gem, Ruby 2.6) is frozen and deprecated: modern gems
     /// require Ruby >= 3.2, so its gems can never be upgraded. We surface it as a disabled
@@ -54,5 +61,27 @@ enum RubyEnvironment {
               result.succeeded else { return false }
         let path = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
         return path.hasPrefix("/usr/bin") || path.hasPrefix("/System/")
+    }
+
+    /// Whether `gem update` needs root, decided by whether this user can write
+    /// the gem home.
+    ///
+    /// Writability rather than a path whitelist: it covers Homebrew, rbenv,
+    /// asdf, chruby and mise without naming any of them, and it is the question
+    /// `sudo` actually answers.
+    ///
+    /// Unknown means sudo. Guessing "no root needed" and being wrong makes the
+    /// upgrade fail on permissions; guessing "root needed" and being wrong asks
+    /// for a password that was not required. Only one of those is recoverable
+    /// without the user going hunting.
+    static func requiresSudo(
+        runner: any CommandRunner, fileManager: FileManager = .default
+    ) async -> Bool {
+        guard let result = try? await runner.runShell("gem environment gemdir", timeout: 20),
+            result.succeeded
+        else { return true }
+        let directory = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !directory.isEmpty else { return true }
+        return !fileManager.isWritableFile(atPath: directory)
     }
 }
