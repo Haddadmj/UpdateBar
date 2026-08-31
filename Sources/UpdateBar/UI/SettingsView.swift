@@ -9,6 +9,9 @@ struct SettingsView: View {
 
     @State private var adminPassword = ""
     @State private var passwordSaved = SudoCredential.hasPassword
+    /// Read once when the window appears rather than on every redraw: it is a
+    /// file read, and the answer does not change while a settings window is open.
+    @State private var touchIDEnabled = SudoAuthentication.isTouchIDEnabled
 
     private let intervals: [(label: String, hours: Int)] = [
         ("Manual only", 0),
@@ -61,7 +64,33 @@ struct SettingsView: View {
             }
 
             Section {
-                if passwordSaved {
+                if touchIDEnabled {
+                    // Touch ID already covers `sudo`, so a stored password buys
+                    // nothing here — and an unneeded credential is strictly a
+                    // liability. Offering the field anyway would be inviting one.
+                    Label(
+                        "Touch ID is enabled for sudo — admin updates will ask for "
+                            + "your fingerprint.",
+                        systemImage: "touchid"
+                    )
+                    .foregroundStyle(.green)
+
+                    if passwordSaved {
+                        // Someone who turned Touch ID on after storing a password
+                        // should be told the stored copy is now dead weight.
+                        HStack {
+                            Text("A stored admin password is no longer needed.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Remove") {
+                                SudoCredential.clear()
+                                adminPassword = ""
+                                passwordSaved = false
+                            }
+                        }
+                    }
+                } else if passwordSaved {
                     HStack {
                         Label("Admin password saved", systemImage: "checkmark.shield.fill")
                             .foregroundStyle(.green)
@@ -86,13 +115,23 @@ struct SettingsView: View {
                     }
                 }
             } header: {
-                Text("Admin password")
+                Text("Admin access")
             } footer: {
-                Text("Stored securely in your Keychain and used for updates that "
-                    + "require administrator access (macOS, Mac App Store, gem), so "
-                    + "you won't be prompted in Terminal. Leave empty to be prompted each time.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                if touchIDEnabled {
+                    Text("Nothing to store. `sudo` authenticates with Touch ID, so "
+                        + "updates that need administrator access (macOS, Mac App "
+                        + "Store, gem) will ask for your fingerprint in the terminal.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Stored securely in your Keychain and used for updates that "
+                        + "require administrator access (macOS, Mac App Store, gem), so "
+                        + "you won't be prompted in Terminal. Leave empty to be prompted "
+                        + "each time — or enable Touch ID for sudo, which needs no "
+                        + "stored password at all.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Section("Sources") {
