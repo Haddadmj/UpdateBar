@@ -45,7 +45,7 @@ struct MasSource: UpdateSource {
     }
 
     func upgradeCommand(_ items: [OutdatedItem]) -> String {
-        let ids = items.map(\.identifier).joined(separator: " ")
+        let ids = ShellQuoting.arguments(items.map(\.identifier))
         return ids.isEmpty ? "mas upgrade" : "mas upgrade \(ids)"
     }
 }

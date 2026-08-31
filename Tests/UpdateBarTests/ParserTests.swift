@@ -74,7 +74,8 @@ final class ParserTests: XCTestCase {
         XCTAssertTrue(gem.requiresAdmin)
         XCTAssertEqual(
             gem.upgradeCommand([OutdatedItem(identifier: "bundler", name: "bundler", currentVersion: "1", latestVersion: "4")]),
-            "gem update bundler"
+            "gem update 'bundler'",
+            "identifiers are quoted uniformly now, including the ordinary ones"
         )
 
         // mas: now admin (mas 7 needs root).

@@ -40,7 +40,7 @@ struct GemSource: UpdateSource {
     }
 
     func upgradeCommand(_ items: [OutdatedItem]) -> String {
-        let names = items.map(\.identifier).joined(separator: " ")
+        let names = ShellQuoting.arguments(items.map(\.identifier))
         return names.isEmpty ? "gem update" : "gem update \(names)"
     }
 }

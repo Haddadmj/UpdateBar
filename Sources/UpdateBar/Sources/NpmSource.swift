@@ -35,8 +35,8 @@ struct NpmSource: UpdateSource {
     }
 
     func upgradeCommand(_ items: [OutdatedItem]) -> String {
-        let names = items.map(\.identifier).joined(separator: " ")
-        return names.isEmpty ? "npm update -g" : "npm install -g \(names)@latest"
+        let names = items.map { ShellQuoting.singleQuoted("\($0.identifier)@latest") }.joined(separator: " ")
+        return names.isEmpty ? "npm update -g" : "npm install -g \(names)"
     }
 
     struct Entry: Decodable {

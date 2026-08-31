@@ -60,6 +60,6 @@ struct PipxSource: UpdateSource {
 
     func upgradeCommand(_ items: [OutdatedItem]) -> String {
         if items.isEmpty { return "pipx upgrade-all" }
-        return items.map { "pipx upgrade \($0.identifier)" }.joined(separator: " && ")
+        return items.map { "pipx upgrade \(ShellQuoting.singleQuoted($0.identifier))" }.joined(separator: " && ")
     }
 }

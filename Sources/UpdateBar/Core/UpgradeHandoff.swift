@@ -40,10 +40,7 @@ enum UpgradeHandoff {
 
     // MARK: Helpers
 
-    /// Wraps `s` in single quotes, escaping embedded single quotes (`'` → `'\''`).
-    private static func singleQuoted(_ s: String) -> String {
-        "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
-    }
+    private static func singleQuoted(_ s: String) -> String { ShellQuoting.singleQuoted(s) }
 
     private static func openScript(_ contents: String) {
         let dir = FileManager.default.temporaryDirectory

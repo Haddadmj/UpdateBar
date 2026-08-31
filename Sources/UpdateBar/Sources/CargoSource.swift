@@ -42,7 +42,7 @@ struct CargoSource: UpdateSource {
     }
 
     func upgradeCommand(_ items: [OutdatedItem]) -> String {
-        let names = items.map(\.identifier).joined(separator: " ")
+        let names = ShellQuoting.arguments(items.map(\.identifier))
         return names.isEmpty ? "cargo install-update -a" : "cargo install-update \(names)"
     }
 }

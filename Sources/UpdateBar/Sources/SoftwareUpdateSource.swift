@@ -53,7 +53,7 @@ struct SoftwareUpdateSource: UpdateSource {
     }
 
     func upgradeCommand(_ items: [OutdatedItem]) -> String {
-        let labels = items.isEmpty ? "--all" : items.map { "'\($0.identifier)'" }.joined(separator: " ")
+        let labels = items.isEmpty ? "--all" : ShellQuoting.arguments(items.map(\.identifier))
         return "softwareupdate --install \(labels)"
     }
 }
