@@ -20,13 +20,33 @@ enum ProcessRunnerError: Error, LocalizedError {
     }
 }
 
+/// The dependency an update source actually has: something that runs a shell
+/// command and comes back with output.
+///
+/// A protocol rather than the concrete runner because `checkOutdated()` is where
+/// sources break in the field — the command string, the JSON extraction, the
+/// decode, the error mapping, the timeout — and none of it was reachable while
+/// every source held a `ProcessRunner` that shells out for real.
+protocol CommandRunner: Sendable {
+    func runShell(_ command: String, timeout: TimeInterval) async throws -> ProcessResult
+}
+
+extension CommandRunner {
+    /// The default every caller used before the protocol existed. Declared here
+    /// rather than in the requirement, since protocol requirements take no
+    /// default arguments.
+    func runShell(_ command: String) async throws -> ProcessResult {
+        try await runShell(command, timeout: 120)
+    }
+}
+
 /// Runs command-line tools on behalf of update sources.
 ///
 /// GUI apps inherit a minimal PATH that lacks `/opt/homebrew/bin`, `~/.cargo/bin`, etc.
 /// We therefore run everything through an interactive-ish login shell so the user's
 /// normal PATH (Homebrew, cargo, rustup, pipx…) is available. Commands are forced
 /// non-interactive so a tool can never block waiting on a TTY prompt.
-struct ProcessRunner: Sendable {
+struct ProcessRunner: CommandRunner {
 
     /// A deterministic environment prelude prepended to every command.
     ///
@@ -48,7 +68,7 @@ struct ProcessRunner: Sendable {
     /// - Parameters:
     ///   - command: A full shell command string.
     ///   - timeout: Max seconds before the process is killed and an error thrown.
-    func runShell(_ command: String, timeout: TimeInterval = 120) async throws -> ProcessResult {
+    func runShell(_ command: String, timeout: TimeInterval) async throws -> ProcessResult {
         try await run(
             executable: "/bin/zsh",
             arguments: ["-c", "\(Self.shellPrelude)\n\(command)"],

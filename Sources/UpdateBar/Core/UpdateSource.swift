@@ -36,7 +36,7 @@ extension UpdateSource {
     func managementNote() async -> String? { nil }
 
     /// Default availability probe: `command -v <tool>` succeeds.
-    func toolExists(_ tool: String, runner: ProcessRunner) async -> Bool {
+    func toolExists(_ tool: String, runner: any CommandRunner) async -> Bool {
         let result = try? await runner.runShell("command -v \(tool)", timeout: 20)
         return result?.succeeded ?? false
     }

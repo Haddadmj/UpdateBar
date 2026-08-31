@@ -9,7 +9,7 @@ struct SoftwareUpdateSource: UpdateSource {
     let displayName = "macOS Updates"
     let iconSystemName = "apple.logo"
     let requiresAdmin = true
-    let runner: ProcessRunner
+    let runner: any CommandRunner
 
     func isAvailable() async -> Bool { true } // always present on macOS
 

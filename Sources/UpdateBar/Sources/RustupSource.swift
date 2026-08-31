@@ -6,7 +6,7 @@ struct RustupSource: UpdateSource {
     let id = "rustup"
     let displayName = "rustup"
     let iconSystemName = "gearshape.2.fill"
-    let runner: ProcessRunner
+    let runner: any CommandRunner
 
     func isAvailable() async -> Bool { await toolExists("rustup", runner: runner) }
 

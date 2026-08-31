@@ -6,7 +6,7 @@ struct PipxSource: UpdateSource {
     let id = "pipx"
     let displayName = "pipx"
     let iconSystemName = "cube.box.fill"
-    let runner: ProcessRunner
+    let runner: any CommandRunner
 
     func isAvailable() async -> Bool { await toolExists("pipx", runner: runner) }
 

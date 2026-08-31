@@ -7,7 +7,7 @@ struct GemSource: UpdateSource {
     let displayName = "RubyGems"
     let iconSystemName = "diamond.fill"
     let requiresAdmin = true // system gem often needs sudo
-    let runner: ProcessRunner
+    let runner: any CommandRunner
 
     func isAvailable() async -> Bool { await toolExists("gem", runner: runner) }
 
@@ -49,7 +49,7 @@ struct GemSource: UpdateSource {
 enum RubyEnvironment {
     /// True when `gem` resolves to Apple's system Ruby (under `/usr/bin` or `/System`),
     /// which is locked to Ruby 2.6 and must not be managed.
-    static func isSystemGem(runner: ProcessRunner) async -> Bool {
+    static func isSystemGem(runner: any CommandRunner) async -> Bool {
         guard let result = try? await runner.runShell("command -v gem", timeout: 20),
               result.succeeded else { return false }
         let path = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)

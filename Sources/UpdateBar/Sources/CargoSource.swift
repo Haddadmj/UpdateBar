@@ -6,7 +6,7 @@ struct CargoSource: UpdateSource {
     let id = "cargo"
     let displayName = "cargo"
     let iconSystemName = "wrench.and.screwdriver.fill"
-    let runner: ProcessRunner
+    let runner: any CommandRunner
 
     func isAvailable() async -> Bool {
         // Needs both cargo and the install-update subcommand.

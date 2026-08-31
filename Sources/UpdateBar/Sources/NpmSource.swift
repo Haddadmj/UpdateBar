@@ -7,7 +7,7 @@ struct NpmSource: UpdateSource {
     let id = "npm"
     let displayName = "npm (global)"
     let iconSystemName = "shippingbox.fill"
-    let runner: ProcessRunner
+    let runner: any CommandRunner
 
     func isAvailable() async -> Bool { await toolExists("npm", runner: runner) }
 

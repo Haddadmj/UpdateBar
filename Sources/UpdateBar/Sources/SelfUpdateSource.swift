@@ -14,7 +14,7 @@ struct SelfUpdateSource: UpdateSource {
     let id = "managers"
     let displayName = "Package Managers"
     let iconSystemName = "shippingbox.circle.fill"
-    let runner: ProcessRunner
+    let runner: any CommandRunner
 
     func isAvailable() async -> Bool { true }
 

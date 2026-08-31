@@ -3,7 +3,7 @@ import Observation
 
 /// Builds the list of sources available on this machine.
 enum SourceRegistry {
-    static func allSources(runner: ProcessRunner) -> [any UpdateSource] {
+    static func allSources(runner: any CommandRunner) -> [any UpdateSource] {
         [
             HomebrewSource(runner: runner),
             MasSource(runner: runner),
@@ -26,7 +26,7 @@ final class UpdateCoordinator {
     private(set) var isRefreshing = false
     private(set) var lastRefresh: Date?
 
-    private let runner = ProcessRunner()
+    private let runner: any CommandRunner = ProcessRunner()
     private var sources: [String: any UpdateSource] = [:]
     private let prefs = AppPreferences.shared
 

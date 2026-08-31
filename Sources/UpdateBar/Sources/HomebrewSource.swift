@@ -5,7 +5,7 @@ struct HomebrewSource: UpdateSource {
     let id = "homebrew"
     let displayName = "Homebrew"
     let iconSystemName = "mug.fill"
-    let runner: ProcessRunner
+    let runner: any CommandRunner
 
     func isAvailable() async -> Bool { await toolExists("brew", runner: runner) }
 
