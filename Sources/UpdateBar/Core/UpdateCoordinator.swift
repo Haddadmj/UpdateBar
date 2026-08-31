@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import os
 
 /// Builds the list of sources available on this machine.
 enum SourceRegistry {
@@ -30,6 +31,15 @@ final class UpdateCoordinator {
     private var sources: [String: any UpdateSource] = [:]
     private let prefs: any SourcePreferences
     private let notifier: any UpdateNotifier
+    /// A menu-bar app refreshes with no window to report into, so when checks
+    /// quietly stop — a timer that never re-armed, a source failing every time —
+    /// there is nothing to look at afterwards.
+    ///
+    /// Outcomes only. Nothing here logs a command body or its output:
+    /// `SudoCredential.shellRetrieval` composes a line that prints a password,
+    /// and it must never reach the log.
+    private let log = Logger(subsystem: "com.updatebar.app", category: "refresh")
+
     /// Supplied by a test; nil means "probe this machine".
     private let providedSources: [any UpdateSource]?
 
@@ -98,8 +108,13 @@ final class UpdateCoordinator {
     func scheduleAutoRefresh() {
         refreshTimer?.invalidate()
         let hours = prefs.refreshIntervalHours
-        guard hours > 0 else { refreshTimer = nil; return }
+        guard hours > 0 else {
+            refreshTimer = nil
+            log.debug("auto-refresh off — manual only")
+            return
+        }
         let interval = TimeInterval(hours) * 3600
+        log.debug("auto-refresh armed: every \(hours, privacy: .public)h")
         refreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { await self?.refreshAll() }
         }
@@ -139,7 +154,22 @@ final class UpdateCoordinator {
             }
         }
         lastRefresh = Date()
+        report()
         notifyIfNewUpdates()
+    }
+
+    /// One line per refresh, naming every source and what it said. A source that
+    /// fails names itself and its error, so "why does the badge say nothing" is
+    /// answerable after the fact rather than only while it is happening.
+    private func report() {
+        let summary = states.map { state -> String in
+            switch state.status {
+            case .failed(let message): return "\(state.id): failed (\(message.prefix(80)))"
+            case .checking: return "\(state.id): still checking"
+            default: return "\(state.id): \(state.count)"
+            }
+        }.joined(separator: ", ")
+        log.notice("refresh: \(summary, privacy: .public)")
     }
 
     /// Diff current updates against the last refresh and notify about newcomers.

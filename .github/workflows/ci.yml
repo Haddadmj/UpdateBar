@@ -1,0 +1,18 @@
+name: CI
+
+# The suite is hermetic — every source runs against a stubbed CommandRunner, so
+# nothing here needs brew, npm, a signing identity or a Keychain. A check that
+# cannot run on a clean runner is a check that gets disabled within a month.
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: swift build
+      - name: Test
+        run: swift test
