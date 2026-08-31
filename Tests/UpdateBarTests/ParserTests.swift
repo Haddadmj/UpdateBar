@@ -118,3 +118,74 @@ final class ParserTests: XCTestCase {
         XCTAssertEqual(items.first?.identifier, "macOS Sequoia 15.6-24G84")
     }
 }
+
+// MARK: - Ticket 03: the last three sources
+
+/// Homebrew is the default source with the most complex payload — two arrays,
+/// snake_case keys, `installed_versions` as a list — and it was the one with no
+/// parse test.
+final class RemainingParserTests: XCTestCase {
+
+    func testHomebrewParsesFormulaeAndCasks() {
+        let json = """
+        {"formulae":[{"name":"ripgrep","installed_versions":["14.1.0"],"current_version":"14.1.1"}],
+         "casks":[{"name":"wezterm","installed_versions":["20240203"],"current_version":"20260101"}]}
+        """
+        let items = HomebrewSource.parse(json)
+        XCTAssertEqual(items?.count, 2)
+        XCTAssertEqual(items?.first { $0.identifier == "ripgrep" }?.currentVersion, "14.1.0")
+        XCTAssertEqual(items?.first { $0.identifier == "wezterm" }?.latestVersion, "20260101")
+    }
+
+    /// What a healthy machine returns. An empty payload is success, not failure.
+    func testHomebrewEmptyPayloadIsNotAnError() {
+        XCTAssertEqual(HomebrewSource.parse(#"{"formulae":[],"casks":[]}"#)?.count, 0)
+    }
+
+    func testHomebrewUndecodableYieldsNil() {
+        XCTAssertNil(HomebrewSource.parse("Error: something went wrong"))
+    }
+
+    /// A formula with no recorded installed version still belongs on the list —
+    /// dropping it would hide an available upgrade.
+    func testHomebrewFormulaWithoutInstalledVersion() {
+        let json = #"{"formulae":[{"name":"jq","installed_versions":[],"current_version":"1.8"}],"casks":[]}"#
+        let items = HomebrewSource.parse(json)
+        XCTAssertEqual(items?.count, 1)
+        XCTAssertNil(items?.first?.currentVersion)
+        XCTAssertEqual(items?.first?.latestVersion, "1.8")
+    }
+
+    func testNpmParsesKeyedObject() {
+        let json = """
+        {"typescript":{"current":"5.4.0","latest":"5.9.2"},
+         "pnpm":{"current":"9.0.0","latest":"10.2.0"}}
+        """
+        let items = NpmSource.parse(json)
+        XCTAssertEqual(items.map(\.identifier), ["pnpm", "typescript"], "sorted by name")
+        XCTAssertEqual(items.first { $0.identifier == "typescript" }?.latestVersion, "5.9.2")
+    }
+
+    /// npm prints `{}` when everything is current, and nothing at all in some
+    /// versions. Both mean "up to date", neither is an error.
+    func testNpmEmptyShapes() {
+        XCTAssertTrue(NpmSource.parse("{}").isEmpty)
+        XCTAssertTrue(NpmSource.parse("").isEmpty)
+    }
+
+    /// A package that is installed but has no published `latest` — npm omits the
+    /// field rather than sending null.
+    func testNpmPackageWithoutLatest() {
+        let items = NpmSource.parse(#"{"private-tool":{"current":"1.0.0"}}"#)
+        XCTAssertEqual(items.count, 1)
+        XCTAssertNil(items.first?.latestVersion)
+    }
+
+    /// `gem search -r -e rubygems-update` prints `rubygems-update (4.0.16)`.
+    func testSelfUpdateReadsTheGemSearchVersion() {
+        XCTAssertEqual(SelfUpdateSource.parseGemSearchVersion("rubygems-update (4.0.16)\n"), "4.0.16")
+        XCTAssertEqual(SelfUpdateSource.parseGemSearchVersion("rubygems-update (3.5.9, 3.5.8)"), "3.5.9")
+        XCTAssertNil(SelfUpdateSource.parseGemSearchVersion("ERROR:  Could not find a valid gem"))
+        XCTAssertNil(SelfUpdateSource.parseGemSearchVersion(""))
+    }
+}

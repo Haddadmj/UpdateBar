@@ -14,11 +14,16 @@ struct NpmSource: UpdateSource {
     func checkOutdated() async throws -> [OutdatedItem] {
         // `npm outdated` exits non-zero when packages are outdated — that's expected.
         let result = try await runner.runShell("npm outdated -g --json", timeout: 120)
-        guard let json = JSONExtractor.extract(result.stdout), json != "{}",
-              let data = json.data(using: .utf8) else {
-            return []
-        }
-        let decoded = try JSONDecoder().decode([String: Entry].self, from: data)
+        return Self.parse(result.stdout)
+    }
+
+    /// Decodes `npm outdated -g --json`, an object keyed by package name.
+    /// Empty output and `{}` both mean everything is current.
+    static func parse(_ output: String) -> [OutdatedItem] {
+        guard let json = JSONExtractor.extract(output), json != "{}",
+            let data = json.data(using: .utf8),
+            let decoded = try? JSONDecoder().decode([String: Entry].self, from: data)
+        else { return [] }
         return decoded.map { name, entry in
             OutdatedItem(
                 identifier: name,
@@ -34,7 +39,7 @@ struct NpmSource: UpdateSource {
         return names.isEmpty ? "npm update -g" : "npm install -g \(names)@latest"
     }
 
-    private struct Entry: Decodable {
+    struct Entry: Decodable {
         let current: String?
         let latest: String?
     }

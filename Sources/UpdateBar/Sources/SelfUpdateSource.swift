@@ -36,6 +36,23 @@ struct SelfUpdateSource: UpdateSource {
 
     // MARK: Individual checks
 
+    /// Reads the version out of `gem search -r -e rubygems-update`, which prints
+    /// `rubygems-update (4.0.16)` — or several, newest first, when a gem has more
+    /// than one published release.
+    ///
+    /// This source has no single list to decode the way the others do, so its
+    /// seam is the one line that is actually parsing rather than an invented
+    /// `parse` with the wrong shape.
+    static func parseGemSearchVersion(_ output: String) -> String? {
+        guard let open = output.firstIndex(of: "("), let close = output.firstIndex(of: ")"),
+            open < close
+        else { return nil }
+        let inside = output[output.index(after: open)..<close]
+        let first = inside.split(separator: ",").first.map(String.init) ?? String(inside)
+        let trimmed = first.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
     private func checkNpm() async -> OutdatedItem? {
         guard await toolExists("npm", runner: runner),
               let cur = try? await runner.runShell("npm -v", timeout: 40), cur.succeeded,
@@ -56,11 +73,8 @@ struct SelfUpdateSource: UpdateSource {
               let lat = try? await runner.runShell("gem search -r -e rubygems-update", timeout: 60), lat.succeeded
         else { return nil }
         let current = cur.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        // Parse "rubygems-update (4.0.16)".
-        guard let open = lat.stdout.firstIndex(of: "("), let close = lat.stdout.firstIndex(of: ")"),
-              open < close else { return nil }
-        let latest = String(lat.stdout[lat.stdout.index(after: open)..<close]).trimmingCharacters(in: .whitespaces)
-        guard Version.isNewer(latest, than: current) else { return nil }
+        guard let latest = Self.parseGemSearchVersion(lat.stdout),
+              Version.isNewer(latest, than: current) else { return nil }
         return OutdatedItem(identifier: "rubygems", name: "RubyGems", currentVersion: current, latestVersion: latest)
     }
 }
