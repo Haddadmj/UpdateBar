@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import UniformTypeIdentifiers
 
 /// Runs upgrade commands in a terminal by writing a temporary `.command` script and
 /// opening it with LaunchServices (`open`).
@@ -51,41 +52,96 @@ enum UpgradeHandoff {
             try contents.write(to: url, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
 
-            let choice = AppPreferences.shared.terminalApp
-            if choice.isEmpty || choice == "Default" {
+            // Resolved to a bundle URL rather than passed to `open -a` by name:
+            // `-a` matches on name, so two installed apps sharing one are
+            // ambiguous, and it puts the path through a shell for no reason.
+            // An unresolvable preference falls back to the system handler
+            // instead of opening nothing.
+            guard let app = TerminalApps.resolve(AppPreferences.shared.terminalApp) else {
                 NSWorkspace.shared.open(url)
-            } else {
-                // open -a <App> <script>: launch a specific terminal (Warp, iTerm, …).
-                let proc = Process()
-                proc.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-                proc.arguments = ["-a", choice, url.path]
-                try proc.run()
+                return
             }
+            NSWorkspace.shared.open(
+                [url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()
+            )
         } catch {
-            NSLog("UpdateBar: failed to launch upgrade terminal: \(error)")
-            // Fall back to the default handler so the user still gets a terminal.
-            NSWorkspace.shared.open(url)
+            NSLog("UpdateBar: failed to write upgrade script: \(error.localizedDescription)")
         }
     }
 }
 
-/// Detects which terminal apps are installed, for the Settings picker.
-@MainActor
 enum TerminalApps {
-    /// Returns "Default" plus any installed terminals we recognise.
-    static func available() -> [String] {
-        var found = ["Default"]
-        let candidates: [(name: String, path: String)] = [
-            ("Terminal", "/System/Applications/Utilities/Terminal.app"),
-            ("Warp", "/Applications/Warp.app"),
-            ("iTerm", "/Applications/iTerm.app"),
-            ("Ghostty", "/Applications/Ghostty.app"),
-            ("kitty", "/Applications/kitty.app"),
-            ("Alacritty", "/Applications/Alacritty.app")
-        ]
-        for c in candidates where FileManager.default.fileExists(atPath: c.path) {
-            found.append(c.name)
+    /// The system handler for `.command` files — a real choice, and not the same
+    /// as naming that app explicitly, because it follows the user's own default
+    /// if they change it later.
+    static let systemDefault = "Default"
+
+    /// Installed terminals — apps that will actually *run* a `.command` file.
+    ///
+    /// Asked rather than listed. A whitelist of `/Applications` paths could only
+    /// ever be a worse copy of an answer the system already has: it missed
+    /// WezTerm, `~/Applications`, Setapp, and every terminal installed after the
+    /// array was written.
+    ///
+    /// LaunchServices alone is too generous, though — it answers "who can open
+    /// this file", which includes TextEdit, Notes and Numbers, all of which will
+    /// happily display an upgrade script and never execute it. The `Shell`
+    /// document role is the app declaring that it *runs* the document, and that
+    /// is the question this setting is really asking.
+    static func handlers() -> [URL] {
+        let types = [UTType("com.apple.terminal.shell-script"), .shellScript, .unixExecutable]
+            .compactMap { $0 }
+        var seen = Set<URL>()
+        var found: [URL] = []
+        for type in types {
+            for url in NSWorkspace.shared.urlsForApplications(toOpen: type)
+            where seen.insert(url).inserted && runsShellScripts(url) {
+                found.append(url)
+            }
         }
         return found
     }
+
+    static func runsShellScripts(_ appURL: URL) -> Bool {
+        guard let info = Bundle(url: appURL)?.infoDictionary,
+            let documentTypes = info["CFBundleDocumentTypes"] as? [[String: Any]]
+        else { return false }
+        return declaresShellRole(documentTypes: documentTypes)
+    }
+
+    /// The rule itself, split from the bundle read so it can be tested against
+    /// captured `Info.plist` fragments rather than whatever is installed.
+    ///
+    /// Any `Shell` role counts, not one on a specific type: Terminal declares it
+    /// for `com.apple.terminal.shell-script`, while WezTerm declares only
+    /// `Editor` there and takes `Shell` on `public.unix-executable`. Requiring a
+    /// particular type would have excluded the app this whole change exists for.
+    static func declaresShellRole(documentTypes: [[String: Any]]) -> Bool {
+        documentTypes.contains { ($0["CFBundleTypeRole"] as? String) == "Shell" }
+    }
+
+    /// Menu entries for the picker: the system default first, then each handler
+    /// by name.
+    static func available() -> [String] { names(for: handlers()) }
+
+    /// The naming rule, split from the machine-dependent query above so it can
+    /// be tested without depending on what happens to be installed.
+    static func names(for handlers: [URL]) -> [String] {
+        var seen = Set<String>()
+        let apps = handlers
+            .map { $0.deletingPathExtension().lastPathComponent }
+            .filter { !$0.isEmpty && $0 != systemDefault && seen.insert($0).inserted }
+            .sorted()
+        return [systemDefault] + apps
+    }
+
+    /// The bundle a stored preference names, or nil to mean "use the system
+    /// handler" — which covers both `Default` and an app that has since been
+    /// uninstalled. A preference outlives the app it names.
+    static func resolve(_ name: String, in handlers: [URL]) -> URL? {
+        guard !name.isEmpty, name != systemDefault else { return nil }
+        return handlers.first { $0.deletingPathExtension().lastPathComponent == name }
+    }
+
+    static func resolve(_ name: String) -> URL? { resolve(name, in: handlers()) }
 }
