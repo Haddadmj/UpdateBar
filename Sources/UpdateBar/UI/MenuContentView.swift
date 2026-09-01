@@ -37,12 +37,28 @@ struct MenuContentView: View {
             Text("UpdateBar")
                 .font(.headline)
             Spacer()
+            // Says what just happened, not only how many updates there are.
+            // A check that runs on open is otherwise invisible: the counts
+            // rarely change, so without this the menu looks identical whether
+            // it re-checked or not.
             if coordinator.isRefreshing {
-                ProgressView().controlSize(.small)
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Checking…")
+                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                }
             } else {
-                Text("\(coordinator.totalCount) updates")
-                    .foregroundStyle(.secondary)
-                    .font(.subheadline)
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text("\(coordinator.totalCount) updates")
+                        .foregroundStyle(.secondary)
+                        .font(.subheadline)
+                    if let last = coordinator.lastRefresh {
+                        Text("Checked \(last.formatted(.relative(presentation: .named)))")
+                            .foregroundStyle(.tertiary)
+                            .font(.caption2)
+                    }
+                }
             }
         }
         .padding(10)

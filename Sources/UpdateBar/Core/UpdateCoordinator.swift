@@ -52,7 +52,8 @@ final class UpdateCoordinator {
         preferences: any SourcePreferences = AppPreferences.shared,
         notifier: any UpdateNotifier = SystemNotifier(),
         credential: any PrivilegedCredential = KeychainCredential(),
-        stalenessWindow: TimeInterval = 5 * 60
+        stalenessWindow: TimeInterval = 5 * 60,
+        minimumVisibleRefresh: TimeInterval = 0.6
     ) {
         self.providedSources = sources
         self.runner = runner
@@ -60,6 +61,7 @@ final class UpdateCoordinator {
         self.notifier = notifier
         self.credential = credential
         self.stalenessWindow = stalenessWindow
+        self.minimumVisibleRefresh = minimumVisibleRefresh
     }
 
     /// How recent a refresh has to be for opening the menu not to redo it.
@@ -68,6 +70,15 @@ final class UpdateCoordinator {
     /// seconds — so opening and closing the menu a few times in a row must not
     /// start a check each time.
     private let stalenessWindow: TimeInterval
+
+    /// How long the refreshing indicator stays up even if the work finishes
+    /// sooner.
+    ///
+    /// A check against warm caches can return in milliseconds, and a spinner
+    /// that appears and vanishes within one frame reads as nothing having
+    /// happened at all — which is exactly how a working refresh gets reported
+    /// as broken. Tests pass 0.
+    private let minimumVisibleRefresh: TimeInterval
 
     /// Identifiers seen on the previous refresh, for new-update notifications.
     private var previouslySeen: Set<String> = []
@@ -80,6 +91,8 @@ final class UpdateCoordinator {
     private var hasPopulated = false
     private var refreshTimer: Timer?
     private var hasBootstrapped = false
+    /// Whether the menu has been opened since launch, for the first-open exemption.
+    private var hasOpenedSinceLaunch = false
 
     var totalCount: Int {
         states.filter { prefs.isEnabled($0.id) }.reduce(0) { $0 + $1.count }
@@ -145,13 +158,23 @@ final class UpdateCoordinator {
         // Before bootstrap there are no sources to check, and refreshing anyway
         // would stamp `lastRefresh` and suppress the real first refresh.
         guard hasBootstrapped, !isRefreshing else { return }
-        if let last = lastRefresh, Date().timeIntervalSince(last) < stalenessWindow { return }
+
+        // The first open always re-checks. The bootstrap refresh ran before
+        // anyone was looking, so from the user's side the app has not checked
+        // anything yet — and a launch-then-open, which is the obvious way to
+        // try this, would otherwise land inside the window and do nothing.
+        let isFirstOpen = !hasOpenedSinceLaunch
+        hasOpenedSinceLaunch = true
+
+        if !isFirstOpen, let last = lastRefresh,
+           Date().timeIntervalSince(last) < stalenessWindow { return }
         await refreshAll()
     }
 
     func refreshAll() async {
         guard !isRefreshing else { return }
         isRefreshing = true
+        let startedAt = Date()
         defer { isRefreshing = false }
 
         // Only check enabled, manageable sources; mark them as checking.
@@ -185,6 +208,11 @@ final class UpdateCoordinator {
         lastRefresh = Date()
         report()
         notifyIfNewUpdates()
+
+        let elapsed = Date().timeIntervalSince(startedAt)
+        if elapsed < minimumVisibleRefresh {
+            try? await Task.sleep(for: .seconds(minimumVisibleRefresh - elapsed))
+        }
     }
 
     /// One line per refresh, so "why does the badge say nothing" is answerable

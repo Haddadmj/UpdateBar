@@ -48,7 +48,8 @@ final class CoordinatorTests: XCTestCase {
         credential: FakeCredential = FakeCredential(hasPassword: false)
     ) -> UpdateCoordinator {
         UpdateCoordinator(
-            sources: sources, preferences: prefs, notifier: notifier, credential: credential
+            sources: sources, preferences: prefs, notifier: notifier, credential: credential,
+            minimumVisibleRefresh: 0
         )
     }
 
@@ -190,7 +191,7 @@ final class CoordinatorTests: XCTestCase {
         let subject = UpdateCoordinator(
             sources: [source], preferences: FakePreferences(),
             notifier: RecordingNotifier(), credential: FakeCredential(hasPassword: false),
-            stalenessWindow: 0
+            stalenessWindow: 0, minimumVisibleRefresh: 0
         )
         await subject.bootstrap()
         XCTAssertEqual(source.checks, 1, "bootstrap does the first check")
@@ -206,14 +207,38 @@ final class CoordinatorTests: XCTestCase {
         let source = CountingSource()
         let subject = UpdateCoordinator(
             sources: [source], preferences: FakePreferences(),
-            notifier: RecordingNotifier(), credential: FakeCredential(hasPassword: false)
+            notifier: RecordingNotifier(), credential: FakeCredential(hasPassword: false),
+            minimumVisibleRefresh: 0
         )
         await subject.bootstrap()
+        await subject.refreshIfStale()  // spends the first-open exemption
+        XCTAssertEqual(source.checks, 2)
 
         await subject.refreshIfStale()
         await subject.refreshIfStale()
 
-        XCTAssertEqual(source.checks, 1, "still just the bootstrap check")
+        XCTAssertEqual(source.checks, 2, "further opens are inside the window")
+    }
+
+    /// Launch, then open the menu — the obvious way to try this — must
+    /// re-check, even though bootstrap refreshed moments earlier and the
+    /// staleness window would otherwise swallow it.
+    func testTheFirstOpenAfterLaunchAlwaysRefreshes() async {
+        let source = CountingSource()
+        let subject = UpdateCoordinator(
+            sources: [source], preferences: FakePreferences(),
+            notifier: RecordingNotifier(), credential: FakeCredential(hasPassword: false),
+            minimumVisibleRefresh: 0
+        )
+        await subject.bootstrap()
+        XCTAssertEqual(source.checks, 1, "bootstrap does the first check")
+
+        await subject.refreshIfStale()
+        XCTAssertEqual(source.checks, 2, "the first open re-checks regardless")
+
+        // The exemption is spent; the window applies from here on.
+        await subject.refreshIfStale()
+        XCTAssertEqual(source.checks, 2)
     }
 
     /// The setting exists for people on metered or slow machines, so switching
@@ -225,7 +250,7 @@ final class CoordinatorTests: XCTestCase {
         let subject = UpdateCoordinator(
             sources: [source], preferences: prefs,
             notifier: RecordingNotifier(), credential: FakeCredential(hasPassword: false),
-            stalenessWindow: 0
+            stalenessWindow: 0, minimumVisibleRefresh: 0
         )
         await subject.bootstrap()
 
@@ -242,7 +267,7 @@ final class CoordinatorTests: XCTestCase {
         let subject = UpdateCoordinator(
             sources: [source], preferences: FakePreferences(),
             notifier: RecordingNotifier(), credential: FakeCredential(hasPassword: false),
-            stalenessWindow: 0
+            stalenessWindow: 0, minimumVisibleRefresh: 0
         )
 
         await subject.refreshIfStale()
