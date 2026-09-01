@@ -179,6 +179,59 @@ final class CoordinatorTests: XCTestCase {
         await subject.refreshAll()
         XCTAssertTrue(notifier.posted.isEmpty)
     }
+
+    // MARK: Refresh when the menu opens
+
+    /// Opening the menu is the only moment the counts are read, so a stale list
+    /// must not be what the user is shown.
+    func testOpeningTheMenuRefreshesWhenTheCountsAreStale() async {
+        let source = CountingSource()
+        let subject = UpdateCoordinator(
+            sources: [source], preferences: FakePreferences(),
+            notifier: RecordingNotifier(), credential: FakeCredential(hasPassword: false),
+            stalenessWindow: 0
+        )
+        await subject.bootstrap()
+        XCTAssertEqual(source.checks, 1, "bootstrap does the first check")
+
+        await subject.refreshIfStale()
+
+        XCTAssertEqual(source.checks, 2)
+    }
+
+    /// The checks shell out and are slow, so toggling the menu a few times in a
+    /// row must not start one each time.
+    func testOpeningTheMenuAgainStraightAwayDoesNotRefresh() async {
+        let source = CountingSource()
+        let subject = UpdateCoordinator(
+            sources: [source], preferences: FakePreferences(),
+            notifier: RecordingNotifier(), credential: FakeCredential(hasPassword: false)
+        )
+        await subject.bootstrap()
+
+        await subject.refreshIfStale()
+        await subject.refreshIfStale()
+
+        XCTAssertEqual(source.checks, 1, "still just the bootstrap check")
+    }
+
+    /// Opening the menu while launch is still probing would otherwise stamp
+    /// `lastRefresh` against an empty source list and suppress the real first
+    /// refresh.
+    func testOpeningTheMenuBeforeBootstrapDoesNothing() async {
+        let source = CountingSource()
+        let subject = UpdateCoordinator(
+            sources: [source], preferences: FakePreferences(),
+            notifier: RecordingNotifier(), credential: FakeCredential(hasPassword: false),
+            stalenessWindow: 0
+        )
+
+        await subject.refreshIfStale()
+
+        XCTAssertEqual(source.checks, 0)
+        XCTAssertNil(subject.lastRefresh)
+    }
+
 }
 
 /// A source whose answer can change between refreshes.
@@ -196,6 +249,25 @@ private final class MutableSource: UpdateSource, @unchecked Sendable {
     func isAvailable() async -> Bool { true }
     func checkOutdated() async throws -> [OutdatedItem] { items }
     func upgradeCommand(_ items: [OutdatedItem]) -> String { "echo \(id)" }
+}
+
+/// Counts how often it was actually checked, so "did opening the menu start a
+/// refresh?" can be asserted rather than inferred from a timestamp.
+private final class CountingSource: UpdateSource, @unchecked Sendable {
+    let id = "counting"
+    let displayName = "Counting"
+    let iconSystemName = "circle"
+    private let lock = NSLock()
+    private var value = 0
+
+    var checks: Int { lock.withLock { value } }
+
+    func isAvailable() async -> Bool { true }
+    func checkOutdated() async throws -> [OutdatedItem] {
+        lock.withLock { value += 1 }
+        return []
+    }
+    func upgradeCommand(_ items: [OutdatedItem]) -> String { "echo counting" }
 }
 
 /// A source that needs admin rights, so the coordinator wraps it in `sudo`.

@@ -51,14 +51,23 @@ final class UpdateCoordinator {
         runner: any CommandRunner = ProcessRunner(),
         preferences: any SourcePreferences = AppPreferences.shared,
         notifier: any UpdateNotifier = SystemNotifier(),
-        credential: any PrivilegedCredential = KeychainCredential()
+        credential: any PrivilegedCredential = KeychainCredential(),
+        stalenessWindow: TimeInterval = 5 * 60
     ) {
         self.providedSources = sources
         self.runner = runner
         self.prefs = preferences
         self.notifier = notifier
         self.credential = credential
+        self.stalenessWindow = stalenessWindow
     }
+
+    /// How recent a refresh has to be for opening the menu not to redo it.
+    ///
+    /// The checks shell out — `softwareupdate -l` alone can take tens of
+    /// seconds — so opening and closing the menu a few times in a row must not
+    /// start a check each time.
+    private let stalenessWindow: TimeInterval
 
     /// Identifiers seen on the previous refresh, for new-update notifications.
     private var previouslySeen: Set<String> = []
@@ -123,6 +132,20 @@ final class UpdateCoordinator {
         refreshTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { await self?.refreshAll() }
         }
+    }
+
+    /// Refresh because the user just opened the menu, unless the numbers on it
+    /// are already recent.
+    ///
+    /// Opening the menu is the only moment the counts are actually read, and
+    /// with the default six-hour interval they can easily be hours stale by
+    /// then — so that is the moment to re-check.
+    func refreshIfStale() async {
+        // Before bootstrap there are no sources to check, and refreshing anyway
+        // would stamp `lastRefresh` and suppress the real first refresh.
+        guard hasBootstrapped, !isRefreshing else { return }
+        if let last = lastRefresh, Date().timeIntervalSince(last) < stalenessWindow { return }
+        await refreshAll()
     }
 
     func refreshAll() async {

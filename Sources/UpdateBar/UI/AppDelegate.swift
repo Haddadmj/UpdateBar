@@ -76,6 +76,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             NSApp.activate(ignoringOtherApps: true)
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
+            // Opening the menu is when the counts are read, so re-check then.
+            // Kicked off after the show, not before, so the popover appears at
+            // once and fills in behind the spinner it already draws.
+            Task { await coordinator.refreshIfStale() }
         }
     }
 
