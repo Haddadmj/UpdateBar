@@ -141,6 +141,7 @@ final class UpdateCoordinator {
     /// with the default six-hour interval they can easily be hours stale by
     /// then — so that is the moment to re-check.
     func refreshIfStale() async {
+        guard prefs.refreshOnOpen else { return }
         // Before bootstrap there are no sources to check, and refreshing anyway
         // would stamp `lastRefresh` and suppress the real first refresh.
         guard hasBootstrapped, !isRefreshing else { return }

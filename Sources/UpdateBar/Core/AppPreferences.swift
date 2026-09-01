@@ -9,6 +9,7 @@ import Observation
 @MainActor
 protocol SourcePreferences: AnyObject {
     var refreshIntervalHours: Int { get }
+    var refreshOnOpen: Bool { get }
     var notifyOnNewUpdates: Bool { get }
     func isEnabled(_ sourceID: String) -> Bool
 }
@@ -23,6 +24,7 @@ final class AppPreferences: SourcePreferences {
 
     private enum Key {
         static let refreshIntervalHours = "refreshIntervalHours"
+        static let refreshOnOpen = "refreshOnOpen"
         static let disabledSourceIDs = "disabledSourceIDs"
         static let notifyOnNewUpdates = "notifyOnNewUpdates"
         static let launchAtLogin = "launchAtLogin"
@@ -42,6 +44,13 @@ final class AppPreferences: SourcePreferences {
     /// How often to auto-refresh, in hours. 0 = manual only.
     var refreshIntervalHours: Int {
         didSet { defaults.set(refreshIntervalHours, forKey: Key.refreshIntervalHours) }
+    }
+
+    /// Re-check when the menu is opened, if the counts are more than a few
+    /// minutes old. On by default: opening the menu is the moment the numbers
+    /// are read, so that is when they should be worth reading.
+    var refreshOnOpen: Bool {
+        didSet { defaults.set(refreshOnOpen, forKey: Key.refreshOnOpen) }
     }
 
     /// Source ids the user has switched off (won't be checked or shown).
@@ -64,10 +73,14 @@ final class AppPreferences: SourcePreferences {
         if defaults.object(forKey: Key.refreshIntervalHours) == nil {
             defaults.set(6, forKey: Key.refreshIntervalHours)
         }
+        if defaults.object(forKey: Key.refreshOnOpen) == nil {
+            defaults.set(true, forKey: Key.refreshOnOpen)
+        }
         if defaults.object(forKey: Key.notifyOnNewUpdates) == nil {
             defaults.set(true, forKey: Key.notifyOnNewUpdates)
         }
         refreshIntervalHours = defaults.integer(forKey: Key.refreshIntervalHours)
+        refreshOnOpen = defaults.bool(forKey: Key.refreshOnOpen)
         disabledSourceIDs = Set(defaults.stringArray(forKey: Key.disabledSourceIDs) ?? [])
         notifyOnNewUpdates = defaults.bool(forKey: Key.notifyOnNewUpdates)
         launchAtLogin = defaults.bool(forKey: Key.launchAtLogin)

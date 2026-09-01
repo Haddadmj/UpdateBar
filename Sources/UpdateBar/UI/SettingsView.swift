@@ -31,6 +31,12 @@ struct SettingsView: View {
                     ForEach(intervals, id: \.hours) { Text($0.label).tag($0.hours) }
                 }
 
+                Toggle("Also check when the menu opens", isOn: Binding(
+                    get: { prefs.refreshOnOpen },
+                    set: { prefs.refreshOnOpen = $0 }
+                ))
+                .help("Re-check when you open the menu, unless the last check was less than five minutes ago.")
+
                 Toggle("Notify me about new updates", isOn: Binding(
                     get: { prefs.notifyOnNewUpdates },
                     set: { prefs.notifyOnNewUpdates = $0 }

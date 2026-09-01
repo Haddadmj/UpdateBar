@@ -28,6 +28,7 @@ private final class RecordingNotifier: UpdateNotifier {
 private final class FakePreferences: SourcePreferences {
     var disabled: Set<String> = []
     var refreshIntervalHours = 0  // no timer in tests
+    var refreshOnOpen = true
     var notifyOnNewUpdates = true
     func isEnabled(_ sourceID: String) -> Bool { !disabled.contains(sourceID) }
 }
@@ -210,6 +211,24 @@ final class CoordinatorTests: XCTestCase {
         await subject.bootstrap()
 
         await subject.refreshIfStale()
+        await subject.refreshIfStale()
+
+        XCTAssertEqual(source.checks, 1, "still just the bootstrap check")
+    }
+
+    /// The setting exists for people on metered or slow machines, so switching
+    /// it off has to actually stop the check — not just widen the window.
+    func testOpeningTheMenuDoesNotRefreshWhenTheSettingIsOff() async {
+        let source = CountingSource()
+        let prefs = FakePreferences()
+        prefs.refreshOnOpen = false
+        let subject = UpdateCoordinator(
+            sources: [source], preferences: prefs,
+            notifier: RecordingNotifier(), credential: FakeCredential(hasPassword: false),
+            stalenessWindow: 0
+        )
+        await subject.bootstrap()
+
         await subject.refreshIfStale()
 
         XCTAssertEqual(source.checks, 1, "still just the bootstrap check")
