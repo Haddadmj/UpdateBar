@@ -33,10 +33,13 @@ surfaces a single number in the menu bar. When it's `✓`, you're fully patched.
 - **Auto-detection** — only shows sources whose CLI is actually installed; add a manager, it appears.
 - **Granular upgrades** — per-item, per-source, or **Upgrade All** in one action.
 - **Right-click menu** — Check for Updates · Upgrade All · Settings · Quit.
+- **Right-click a source** — upgrade that whole package manager, or switch it off, without
+  expanding the row or opening Settings. Re-enabling re-checks it immediately.
 - **Package-manager self-updates** — flags when `npm`, `brew`, RubyGems etc. themselves have a newer version.
 - **Privileged handoff** — admin-gated upgrades (`softwareupdate`, system `gem`) open in your
   terminal so you can authenticate normally. Works with Terminal, **Warp**, iTerm, and more.
-- **Settings** — refresh interval, new-update notifications, launch-at-login (`SMAppService`),
+- **Settings** — refresh interval, an optional re-check when the menu opens, new-update
+  notifications, the terminal upgrades are handed to, launch-at-login (`SMAppService`),
   and per-source enable/disable.
 - **Runs deterministically** — CLIs execute through a fixed, non-interactive shell prelude, so
   your `.zshrc` / powerlevel10k doesn't leak noise into the output.
@@ -92,6 +95,7 @@ swift test          # parsers, sources, coordinator, quoting, terminal + PAM det
 
 - **Left-click** the menu-bar icon → the update breakdown popover.
 - **Right-click** → context menu (Check for Updates · Upgrade All · Settings · Quit).
+- **Right-click a package-manager row** → upgrade that source, or disable it.
 - The badge shows the total pending count; a checkmark means you're fully up to date.
 
 ## Architecture
