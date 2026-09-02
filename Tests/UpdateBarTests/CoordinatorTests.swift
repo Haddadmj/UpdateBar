@@ -31,6 +31,9 @@ private final class FakePreferences: SourcePreferences {
     var refreshOnOpen = true
     var notifyOnNewUpdates = true
     func isEnabled(_ sourceID: String) -> Bool { !disabled.contains(sourceID) }
+    func setEnabled(_ enabled: Bool, for sourceID: String) {
+        if enabled { disabled.remove(sourceID) } else { disabled.insert(sourceID) }
+    }
 }
 
 private struct FakeCredential: PrivilegedCredential {
@@ -168,6 +171,42 @@ final class CoordinatorTests: XCTestCase {
         await subject.bootstrap()
         XCTAssertEqual(subject.totalCount, 1, "the disabled source is not in the badge")
         XCTAssertEqual(subject.visibleStates.map(\.id), ["a"])
+    }
+
+    /// What the menu's right-click "Disable" does: the source has to leave both
+    /// the list and the badge, or the row stays put and the click looks dead.
+    func testDisablingASourceHidesItAndDropsItsCount() async {
+        let subject = coordinator([
+            FakeSource(id: "a", displayName: "A", items: [item("one")]),
+            FakeSource(id: "b", displayName: "B", items: [item("two"), item("three")])
+        ])
+        await subject.bootstrap()
+        XCTAssertEqual(subject.totalCount, 3)
+
+        subject.setEnabled(false, for: "b")
+
+        XCTAssertEqual(subject.visibleStates.map(\.id), ["a"])
+        XCTAssertEqual(subject.totalCount, 1)
+        XCTAssertFalse(subject.isEnabled("b"))
+        XCTAssertTrue(
+            subject.states.contains { $0.id == "b" },
+            "still probed, so Settings can offer it back"
+        )
+    }
+
+    func testReenablingASourceBringsItBack() async {
+        let subject = coordinator([
+            FakeSource(id: "a", displayName: "A", items: [item("one")]),
+            FakeSource(id: "b", displayName: "B", items: [item("two")])
+        ])
+        await subject.bootstrap()
+        subject.setEnabled(false, for: "b")
+        XCTAssertEqual(subject.visibleStates.map(\.id), ["a"])
+
+        subject.setEnabled(true, for: "b")
+
+        XCTAssertEqual(subject.visibleStates.map(\.id), ["a", "b"])
+        XCTAssertTrue(subject.isEnabled("b"))
     }
 
     func testNotificationsOffStaysSilent() async {

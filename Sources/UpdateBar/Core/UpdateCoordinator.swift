@@ -103,6 +103,17 @@ final class UpdateCoordinator {
         states.filter { prefs.isEnabled($0.id) }
     }
 
+    func isEnabled(_ sourceID: String) -> Bool { prefs.isEnabled(sourceID) }
+
+    /// Turn a source on or off.
+    ///
+    /// Re-enabling re-checks, because a source that was off has no counts and
+    /// would otherwise reappear reading zero until the next scheduled refresh.
+    func setEnabled(_ enabled: Bool, for sourceID: String) {
+        prefs.setEnabled(enabled, for: sourceID)
+        if enabled { Task { await refreshAll() } }
+    }
+
     /// Probe which sources exist, then do a first refresh and start the timer.
     func bootstrap() async {
         guard !hasBootstrapped else { return }

@@ -144,6 +144,7 @@ struct SourceSectionView: View {
             .contentShape(Rectangle())
             .opacity(state.isManageable ? 1 : 0.55)
             .onTapGesture { withAnimation { expanded.toggle() } }
+            .contextMenu { rowMenu }
 
             // Non-manageable sources (e.g. Apple system Ruby) show an explanatory note
             // and offer no upgrade actions.
@@ -194,6 +195,23 @@ struct SourceSectionView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 2)
+    }
+
+    /// Right-click actions for a source, so the two things worth doing to a
+    /// whole package manager don't need the row expanded (upgrade) or the
+    /// Settings window open (disable).
+    @ViewBuilder
+    private var rowMenu: some View {
+        Button("Upgrade all \(state.displayName)…") {
+            Task { await coordinator.upgrade(sourceID: state.id, items: []) }
+        }
+        .disabled(!state.isManageable || state.count == 0)
+
+        Divider()
+
+        Button("Disable \(state.displayName)") {
+            coordinator.setEnabled(false, for: state.id)
+        }
     }
 
     @ViewBuilder

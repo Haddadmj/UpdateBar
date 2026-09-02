@@ -12,6 +12,10 @@ protocol SourcePreferences: AnyObject {
     var refreshOnOpen: Bool { get }
     var notifyOnNewUpdates: Bool { get }
     func isEnabled(_ sourceID: String) -> Bool
+    /// Writable through the coordinator so the menu can disable a source
+    /// against the same preferences the coordinator filters with — reaching for
+    /// the singleton instead would hide a source the coordinator still shows.
+    func setEnabled(_ enabled: Bool, for sourceID: String)
 }
 
 /// User-facing settings, persisted to `UserDefaults` and observed by the UI.
