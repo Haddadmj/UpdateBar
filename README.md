@@ -70,8 +70,11 @@ surfaces a single number in the menu bar. When it's `✓`, you're fully patched.
 ### From a release DMG
 
 Download the latest `UpdateBar.dmg`, open it, and drag **UpdateBar** into **Applications**.
-Because local builds are ad-hoc signed (not notarized), the first launch needs a
-right-click → **Open** to get past Gatekeeper.
+Release DMGs are signed with a Developer ID and notarized by Apple, so they open
+with a normal double-click — no right-click → Open, no Gatekeeper warning.
+
+A DMG you build yourself without signing credentials is ad-hoc signed instead,
+and *that* one needs the right-click → **Open** on first launch.
 
 ### Build from source
 
@@ -153,8 +156,17 @@ export AC_KEYCHAIN_PROFILE="notary"   # see release.sh header for setup
 `DEVELOPER_ID` is set), builds a DMG, and notarizes + staples when notary credentials are
 present. The app icon is rendered from an SF Symbol by `scripts/make-icon.swift`.
 
-A Homebrew cask template lives in [`Casks/updatebar.rb`](Casks/updatebar.rb) — fill in the
-release URL and sha256 after publishing, then `brew install --cask` from your tap.
+A Homebrew cask lives in [`Casks/updatebar.rb`](Casks/updatebar.rb), filled in against the
+current release. Homebrew only installs casks from a tap, so serving it means copying that
+file into a `Haddadmj/homebrew-tap` repository:
+
+```bash
+brew tap Haddadmj/tap
+brew install --cask updatebar
+```
+
+On each release, bump `version` and `sha256` (`shasum -a 256 .build/dist/UpdateBar.dmg`) in
+both copies.
 
 > **Sandbox note:** UpdateBar ships **un-sandboxed** on purpose — a sandboxed app can't spawn
 > `brew` / `mas` / etc. It relies on Developer ID + notarization (not the Mac App Store) for trust.
