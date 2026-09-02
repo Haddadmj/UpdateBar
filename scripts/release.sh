@@ -42,6 +42,24 @@ else
   echo "==> No DEVELOPER_ID set — leaving the ad-hoc signature (local use only)."
 fi
 
+# Notarization happens twice, and the order is the point. The app is notarized
+# and stapled BEFORE it is packaged, so the copy that ships inside the DMG
+# carries its own ticket — a staple applied afterwards lands on the build
+# output, which nobody installs, and leaves the shipped app needing Apple
+# online at first launch. The DMG is then signed and notarized in its own
+# right, so `spctl -a -t open` accepts the file people actually download.
+if [ -n "${AC_KEYCHAIN_PROFILE:-}" ]; then
+  echo "==> Notarizing the app (this can take a few minutes)…"
+  ZIP="$ROOT/.build/$APP_NAME.zip"
+  rm -f "$ZIP"
+  # ditto, not zip: it preserves the bundle's symlinks and extended attributes.
+  ditto -c -k --keepParent "$APP" "$ZIP"
+  xcrun notarytool submit "$ZIP" --keychain-profile "$AC_KEYCHAIN_PROFILE" --wait
+  rm -f "$ZIP"
+  echo "==> Stapling the app…"
+  xcrun stapler staple "$APP"
+fi
+
 echo "==> Building DMG…"
 rm -rf "$DIST"; mkdir -p "$DIST"
 STAGE="$(mktemp -d)"
@@ -51,12 +69,16 @@ hdiutil create -volname "$APP_NAME" -srcfolder "$STAGE" -ov -format UDZO "$DMG" 
 rm -rf "$STAGE"
 echo "   Wrote $DMG"
 
+if [ -n "${DEVELOPER_ID:-}" ]; then
+  echo "==> Signing the DMG…"
+  codesign --force --timestamp --sign "$DEVELOPER_ID" "$DMG"
+fi
+
 if [ -n "${DEVELOPER_ID:-}" ] && [ -n "${AC_KEYCHAIN_PROFILE:-}" ]; then
-  echo "==> Notarizing (this can take a few minutes)…"
+  echo "==> Notarizing the DMG (this can take a few minutes)…"
   xcrun notarytool submit "$DMG" --keychain-profile "$AC_KEYCHAIN_PROFILE" --wait
-  echo "==> Stapling…"
+  echo "==> Stapling the DMG…"
   xcrun stapler staple "$DMG"
-  xcrun stapler staple "$APP"
   echo "==> Notarized & stapled ✓"
 else
   echo "==> Skipping notarization (need DEVELOPER_ID + AC_KEYCHAIN_PROFILE)."
