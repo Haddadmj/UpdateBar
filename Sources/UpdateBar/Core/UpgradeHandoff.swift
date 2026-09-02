@@ -51,18 +51,61 @@ enum UpgradeHandoff {
             // Resolved to a bundle URL rather than passed to `open -a` by name:
             // `-a` matches on name, so two installed apps sharing one are
             // ambiguous, and it puts the path through a shell for no reason.
-            // An unresolvable preference falls back to the system handler
-            // instead of opening nothing.
-            guard let app = TerminalApps.resolve(AppPreferences.shared.terminalApp) else {
+            //
+            // "Default" names no app, so the system is asked which one would
+            // open the script. That answer is wanted for its own sake — the
+            // handover below has to name a bundle to wait on — and only a
+            // system with no handler at all falls through to `open(url)`.
+            let preferred = TerminalApps.resolve(AppPreferences.shared.terminalApp)
+            guard let app = preferred ?? NSWorkspace.shared.urlForApplication(toOpen: url) else {
                 NSWorkspace.shared.open(url)
                 return
             }
-            NSWorkspace.shared.open(
-                [url], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()
-            )
+            Task { await handOver(url, to: app) }
         } catch {
             Logger(subsystem: "com.updatebar.app", category: "upgrade")
                 .error("could not write upgrade script: \(error.localizedDescription, privacy: .private)")
+        }
+    }
+
+    /// Launch the terminal, wait for it to be ready, and only then give it the
+    /// script.
+    ///
+    /// Opening a document against a terminal that is not running yet reports
+    /// success and then silently drops it: the app comes up with an empty
+    /// window and the upgrade never starts. Clicking a second time appeared to
+    /// fix it only because the terminal was warm by then.
+    ///
+    /// Terminal.app happens to survive the cold case, so this is invisible
+    /// unless the chosen terminal is a third-party one — WezTerm, where it was
+    /// found, drops it every time.
+    private static func handOver(_ script: URL, to app: URL) async {
+        let launch = NSWorkspace.OpenConfiguration()
+        launch.activates = true
+        let running = try? await NSWorkspace.shared.openApplication(
+            at: app, configuration: launch
+        )
+        if let running { await waitUntilReady(running) }
+
+        _ = try? await NSWorkspace.shared.open(
+            [script], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()
+        )
+    }
+
+    /// Poll until the app reports itself launched, or the deadline passes.
+    ///
+    /// The launch call comes back before the app can accept a document — it
+    /// returns with `isFinishedLaunching` still false — so its completion is
+    /// not the signal to hand over. A terminal that never reports ready still
+    /// gets the script once the deadline is up, which is the behaviour this
+    /// replaces and no worse than it.
+    private static func waitUntilReady(
+        _ app: NSRunningApplication, timeout: Duration = .seconds(10)
+    ) async {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while !app.isFinishedLaunching, clock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(50))
         }
     }
 }
