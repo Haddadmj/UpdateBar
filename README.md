@@ -145,7 +145,7 @@ Design principles:
 
 # Fully shippable, notarized DMG — needs an Apple Developer account:
 export DEVELOPER_ID="Developer ID Application: Your Name (TEAMID)"
-export AC_KEYCHAIN_PROFILE="updatebar-notary"   # see release.sh header for setup
+export AC_KEYCHAIN_PROFILE="notary"   # see release.sh header for setup
 ./scripts/release.sh                             # → .build/dist/UpdateBar.dmg
 ```
 
