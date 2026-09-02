@@ -162,8 +162,12 @@ file into a `Haddadmj/homebrew-tap` repository:
 
 ```bash
 brew tap Haddadmj/tap
+brew trust Haddadmj/tap
 brew install --cask updatebar
 ```
+
+`brew trust` is required, not optional: Homebrew refuses to load a cask from a
+third-party tap until you trust it.
 
 On each release, bump `version` and `sha256` (`shasum -a 256 .build/dist/UpdateBar.dmg`) in
 both copies.
