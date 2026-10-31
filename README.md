@@ -153,6 +153,10 @@ export AC_KEYCHAIN_PROFILE="notary"   # see release.sh header for setup
 ./scripts/release.sh                             # → .build/dist/UpdateBar.dmg
 ```
 
+`release.sh` needs [`create-dmg`](https://github.com/create-dmg/create-dmg)
+(`brew install create-dmg`), and macOS asks to let it control Finder the first time, because
+that is how the DMG window gets laid out.
+
 `release.sh` generates the icon, builds the app, signs (Developer ID + hardened runtime when
 `DEVELOPER_ID` is set), builds a DMG, and notarizes + staples when notary credentials are
 present. The app icon is rendered from an SF Symbol by `scripts/make-icon.swift`.
