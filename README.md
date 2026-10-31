@@ -35,7 +35,8 @@ surfaces a single number in the menu bar. When it's `✓`, you're fully patched.
 - **Right-click menu** — Check for Updates · Upgrade All · Settings · Quit.
 - **Right-click a source** — upgrade that whole package manager, or switch it off, without
   expanding the row or opening Settings. Re-enabling re-checks it immediately.
-- **Package-manager self-updates** — flags when `npm`, `brew`, RubyGems etc. themselves have a newer version.
+- **Package-manager self-updates** — flags when your own `npm` or RubyGems has a newer version.
+  Copies that belong to macOS or Homebrew are left to them.
 - **Privileged handoff** — admin-gated upgrades (`softwareupdate`, system `gem`) open in your
   terminal so you can authenticate normally. Works with Terminal, **Warp**, iTerm, and more.
 - **Settings** — refresh interval, an optional re-check when the menu opens, new-update
@@ -179,8 +180,10 @@ both copies.
 
 - Admin-gated sources run their upgrade in the terminal (not in-process); **Upgrade All** covers
   only the non-privileged sources.
-- Apple's **system Ruby** (`/usr/bin/gem`, Ruby 2.6) is shown as a dimmed, non-actionable row —
-  its gems can't be upgraded. Install a Homebrew or rbenv Ruby to manage gems.
+- Apple's **system Ruby** (`/usr/bin/gem`, Ruby 2.6) is shown as a dimmed, non-actionable row
+  labelled **System** — its gems can't be upgraded. Install a Homebrew or rbenv Ruby to manage gems.
+- `npm` and RubyGems only offer to update themselves when the copy is yours. One owned by macOS
+  or Homebrew, or a RubyGems that would take root to change, is not offered.
 - Launch-at-login and notifications require running from the built `.app` bundle (not the raw
   SwiftPM binary).
 

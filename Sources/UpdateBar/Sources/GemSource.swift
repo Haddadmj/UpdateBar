@@ -60,7 +60,7 @@ enum RubyEnvironment {
         guard let result = try? await runner.runShell("command -v gem", timeout: 20),
               result.succeeded else { return false }
         let path = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
-        return path.hasPrefix("/usr/bin") || path.hasPrefix("/System/")
+        return ToolOwner.classify(path: path) == .system
     }
 
     /// Whether `gem update` needs root, decided by whether this user can write

@@ -6,10 +6,14 @@ import Foundation
 ///
 /// Only managers with a clean, reliable self-version check are included:
 /// - **npm**: `npm -v` vs `npm view npm version`; upgrade `npm install -g npm@latest`.
-/// - **RubyGems**: `gem --version` vs latest `rubygems-update`; upgrade `sudo gem update --system`.
+/// - **RubyGems**: `gem --version` vs latest `rubygems-update`; upgrade `gem update --system`.
 ///
 /// (Homebrew and rustup self-update as a side effect of `brew update` / `rustup update`,
 /// and Homebrew's pip is externally managed, so those are intentionally omitted.)
+///
+/// A tool is only offered when it is the user's own (see `ToolOwner`). One that belongs
+/// to macOS or Homebrew gets its update from them, and offering a second route to the
+/// same files is how they end up root-owned or conflicting on the next `brew upgrade`.
 struct SelfUpdateSource: UpdateSource {
     let id = "managers"
     let displayName = "Package Managers"
@@ -28,7 +32,7 @@ struct SelfUpdateSource: UpdateSource {
         items.compactMap { item -> String? in
             switch item.identifier {
             case "npm": return "npm install -g npm@latest"
-            case "rubygems": return "sudo gem update --system"   // system gem needs root
+            case "rubygems": return "gem update --system"
             default: return nil
             }
         }.joined(separator: " && ")
@@ -55,6 +59,7 @@ struct SelfUpdateSource: UpdateSource {
 
     private func checkNpm() async -> OutdatedItem? {
         guard await toolExists("npm", runner: runner),
+              await ToolOwner.of("npm", runner: runner) == .user,
               let cur = try? await runner.runShell("npm -v", timeout: 40), cur.succeeded,
               let lat = try? await runner.runShell("npm view npm version", timeout: 40), lat.succeeded
         else { return nil }
@@ -66,9 +71,11 @@ struct SelfUpdateSource: UpdateSource {
 
     private func checkRubyGems() async -> OutdatedItem? {
         // Never offer `gem update --system` on Apple's system Ruby — it's locked to
-        // Ruby 2.6 and the newer RubyGems requires Ruby >= 3.2, so it always fails.
+        // Ruby 2.6 and the newer RubyGems requires Ruby >= 3.2, so it always fails —
+        // nor on a Ruby this user can't write to, which would take root to change.
         guard await toolExists("gem", runner: runner),
-              await !RubyEnvironment.isSystemGem(runner: runner),
+              await ToolOwner.of("gem", runner: runner) == .user,
+              await !RubyEnvironment.requiresSudo(runner: runner),
               let cur = try? await runner.runShell("gem --version", timeout: 40), cur.succeeded,
               let lat = try? await runner.runShell("gem search -r -e rubygems-update", timeout: 60), lat.succeeded
         else { return nil }
