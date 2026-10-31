@@ -5,8 +5,8 @@
 #   shasum -a 256 .build/dist/UpdateBar.dmg
 # and copy this file into Haddadmj/homebrew-tap as Casks/updatebar.rb.
 cask "updatebar" do
-  version "0.1.0"
-  sha256 "0ea9f5a05d52d57e7d303f578110b475a7b5ba9b10bb97332b4d40f172a6a91b"
+  version "0.2.0"
+  sha256 "f4ed2ce4124a56b7178d74105e38e91adc584e95eeff67994753134c406daf46"
 
   url "https://github.com/Haddadmj/UpdateBar/releases/download/v#{version}/UpdateBar.dmg"
   name "UpdateBar"
