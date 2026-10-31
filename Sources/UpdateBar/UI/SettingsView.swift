@@ -22,8 +22,17 @@ struct SettingsView: View {
     ]
 
     var body: some View {
+        TabView {
+            general.tabItem { Label("General", systemImage: "gearshape") }
+            sources.tabItem { Label("Sources", systemImage: "shippingbox") }
+            admin.tabItem { Label("Admin access", systemImage: "lock") }
+        }
+        .frame(width: 460, height: 420)
+    }
+
+    private var general: some View {
         Form {
-            Section("General") {
+            Section("Updates") {
                 Picker("Check for updates", selection: Binding(
                     get: { prefs.refreshIntervalHours },
                     set: { prefs.refreshIntervalHours = $0; coordinator.scheduleAutoRefresh() }
@@ -41,7 +50,9 @@ struct SettingsView: View {
                     get: { prefs.notifyOnNewUpdates },
                     set: { prefs.notifyOnNewUpdates = $0 }
                 ))
+            }
 
+            Section("App") {
                 Picker("Run upgrades in", selection: Binding(
                     get: { prefs.terminalApp },
                     set: { prefs.terminalApp = $0 }
@@ -68,7 +79,48 @@ struct SettingsView: View {
                         .foregroundStyle(.red)
                 }
             }
+        }
+        .formStyle(.grouped)
+    }
 
+    private var sources: some View {
+        Form {
+            Section {
+                if coordinator.states.isEmpty {
+                    Text("Detecting installed package managers…")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(coordinator.states) { state in
+                    Toggle(isOn: Binding(
+                        get: { prefs.isEnabled(state.id) },
+                        set: { newValue in
+                            prefs.setEnabled(newValue, for: state.id)
+                            if newValue { Task { await coordinator.refreshAll() } }
+                        }
+                    )) {
+                        HStack(spacing: Space.s) {
+                            SourceIconTile(systemName: state.iconSystemName)
+                            Text(state.displayName)
+                            if state.requiresAdmin {
+                                Image(systemName: "lock.fill")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            if !state.isManageable { SystemBadge() }
+                        }
+                    }
+                }
+            } footer: {
+                Text("Switched-off sources aren't checked or shown in the menu.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var admin: some View {
+        Form {
             Section {
                 if touchIDEnabled {
                     // Touch ID already covers `sudo`, so a stored password buys
@@ -89,11 +141,7 @@ struct SettingsView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             Spacer()
-                            Button("Remove") {
-                                SudoCredential.clear()
-                                adminPassword = ""
-                                passwordSaved = false
-                            }
+                            removePasswordButton
                         }
                     }
                 } else if passwordSaved {
@@ -101,16 +149,13 @@ struct SettingsView: View {
                         Label("Admin password saved", systemImage: "checkmark.shield.fill")
                             .foregroundStyle(.green)
                         Spacer()
-                        Button("Remove") {
-                            SudoCredential.clear()
-                            adminPassword = ""
-                            passwordSaved = false
-                        }
+                        removePasswordButton
                     }
                 } else {
                     HStack {
                         SecureField("Admin password", text: $adminPassword)
                             .textFieldStyle(.roundedBorder)
+                            .labelsHidden()
                         Button("Save") {
                             if SudoCredential.store(adminPassword) {
                                 adminPassword = ""
@@ -120,8 +165,6 @@ struct SettingsView: View {
                         .disabled(adminPassword.isEmpty)
                     }
                 }
-            } header: {
-                Text("Admin access")
             } footer: {
                 if touchIDEnabled {
                     Text("Nothing to store. `sudo` authenticates with Touch ID, so "
@@ -139,34 +182,15 @@ struct SettingsView: View {
                         .foregroundStyle(.secondary)
                 }
             }
-
-            Section("Sources") {
-                if coordinator.states.isEmpty {
-                    Text("Detecting installed package managers…")
-                        .foregroundStyle(.secondary)
-                }
-                ForEach(coordinator.states) { state in
-                    Toggle(isOn: Binding(
-                        get: { prefs.isEnabled(state.id) },
-                        set: { newValue in
-                            prefs.setEnabled(newValue, for: state.id)
-                            if newValue { Task { await coordinator.refreshAll() } }
-                        }
-                    )) {
-                        HStack {
-                            Image(systemName: state.iconSystemName)
-                            Text(state.displayName)
-                            if state.requiresAdmin {
-                                Image(systemName: "lock.fill")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
-                }
-            }
         }
         .formStyle(.grouped)
-        .frame(width: 380, height: 420)
+    }
+
+    private var removePasswordButton: some View {
+        Button("Remove") {
+            SudoCredential.clear()
+            adminPassword = ""
+            passwordSaved = false
+        }
     }
 }
