@@ -18,6 +18,10 @@ DIST="$ROOT/.build/dist"
 DMG="$DIST/$APP_NAME.dmg"
 ENTITLEMENTS="$ROOT/Resources/UpdateBar.entitlements"
 
+command -v create-dmg >/dev/null || {
+  echo "error: create-dmg not found — brew install create-dmg" >&2; exit 1
+}
+
 echo "==> Generating icon…"
 swift "$ROOT/scripts/make-icon.swift" "$ROOT/Resources" >/dev/null || echo "   (icon generation skipped)"
 
@@ -64,8 +68,18 @@ echo "==> Building DMG…"
 rm -rf "$DIST"; mkdir -p "$DIST"
 STAGE="$(mktemp -d)"
 cp -R "$APP" "$STAGE/"
-ln -s /Applications "$STAGE/Applications"
-hdiutil create -volname "$APP_NAME" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
+# The icon positions match the arrow in the background; if they change, update
+# scripts/make-dmg-background.swift too and re-run it.
+create-dmg \
+  --volname "$APP_NAME" \
+  --volicon "$ROOT/Resources/AppIcon.icns" \
+  --background "$ROOT/Resources/dmg-background.tiff" \
+  --window-size 660 400 \
+  --icon-size 128 \
+  --icon "$APP_NAME.app" 180 170 \
+  --hide-extension "$APP_NAME.app" \
+  --app-drop-link 480 170 \
+  "$DMG" "$STAGE" >/dev/null
 rm -rf "$STAGE"
 echo "   Wrote $DMG"
 
