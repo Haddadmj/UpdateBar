@@ -178,8 +178,9 @@ both copies.
 
 ## Notes & limitations
 
-- Admin-gated sources run their upgrade in the terminal (not in-process); **Upgrade All** covers
-  only the non-privileged sources.
+- Admin-gated sources run their upgrade in the terminal (not in-process). **Upgrade All** covers
+  every enabled source with updates, including macOS Updates and the Mac App Store, so it can
+  install OS updates and ask for your password or fingerprint.
 - Apple's **system Ruby** (`/usr/bin/gem`, Ruby 2.6) is shown as a dimmed, non-actionable row
   labelled **System** — its gems can't be upgraded. Install a Homebrew or rbenv Ruby to manage gems.
 - `npm` and RubyGems only offer to update themselves when the copy is yours. One owned by macOS
