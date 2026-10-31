@@ -16,6 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        NSApp.mainMenu = makeMainMenu()
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         if let button = statusItem.button {
@@ -37,6 +38,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             await coordinator.bootstrap()
             observeBadge()
         }
+    }
+
+    // MARK: Main menu
+
+    /// Never drawn in an accessory app, but key equivalents are still routed through
+    /// it — without an Edit menu, Cmd-V does nothing in the admin password field.
+    func makeMainMenu() -> NSMenu {
+        func submenu(_ title: String, _ items: [NSMenuItem]) -> NSMenuItem {
+            let menu = NSMenu(title: title)
+            items.forEach(menu.addItem)
+            let holder = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+            holder.submenu = menu
+            return holder
+        }
+
+        let settings = NSMenuItem(title: "Settings…", action: #selector(menuOpenSettings), keyEquivalent: ",")
+        settings.target = self
+        let quit = NSMenuItem(title: "Quit UpdateBar", action: #selector(menuQuit), keyEquivalent: "q")
+        quit.target = self
+
+        let redo = NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+
+        let mainMenu = NSMenu()
+        mainMenu.addItem(submenu("UpdateBar", [settings, quit]))
+        mainMenu.addItem(submenu("Edit", [
+            NSMenuItem(title: "Undo", action: Selector(("undo:")), keyEquivalent: "z"),
+            redo,
+            NSMenuItem(title: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x"),
+            NSMenuItem(title: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c"),
+            NSMenuItem(title: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v"),
+            NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        ]))
+        mainMenu.addItem(submenu("Window", [
+            NSMenuItem(title: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
+        ]))
+        return mainMenu
     }
 
     // MARK: Badge
