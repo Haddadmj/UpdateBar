@@ -28,11 +28,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         updateButton()
 
         popover.behavior = .transient
-        popover.contentViewController = NSHostingController(
+        let hosting = NSHostingController(
             rootView: MenuContentView(coordinator: coordinator, onOpenSettings: { [weak self] in
                 self?.openSettings()
             })
         )
+        // Without this the popover keeps the size of the content it first measured —
+        // the "detecting" placeholder — and the source list is clipped to fit inside it.
+        hosting.sizingOptions = .preferredContentSize
+        popover.contentViewController = hosting
 
         Task {
             await coordinator.bootstrap()

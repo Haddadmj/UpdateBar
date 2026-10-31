@@ -54,7 +54,7 @@ struct MenuContentView: View {
                     total: coordinator.totalCount,
                     failed: failedCount,
                     enabledSources: coordinator.visibleStates.count,
-                    hasChecked: coordinator.lastRefresh != nil
+                    isChecking: coordinator.isRefreshing || coordinator.lastRefresh == nil
                 ))
                 .font(.title2.weight(.semibold))
                 .monospacedDigit()
@@ -91,8 +91,11 @@ struct MenuContentView: View {
 
     @ViewBuilder
     private var subtitle: some View {
-        if coordinator.isRefreshing {
-            Text("Checking…")
+        if coordinator.states.isEmpty {
+            Text("Detecting package managers…")
+        } else if coordinator.isRefreshing {
+            // The headline already says "Checking…" unless it is showing a count.
+            Text(coordinator.totalCount > 0 ? "Checking…" : "This can take a minute")
         } else if let last = coordinator.lastRefresh {
             // On a timeline because the popover stays alive between opens: a plain
             // Text would keep saying "now" until something else redrew it.
@@ -100,8 +103,6 @@ struct MenuContentView: View {
                 Text("Checked \(last.formatted(.relative(presentation: .named)))"
                     + (failedCount > 0 ? " · \(failedCount) failed" : ""))
             }
-        } else {
-            Text("Detecting package managers…")
         }
     }
 

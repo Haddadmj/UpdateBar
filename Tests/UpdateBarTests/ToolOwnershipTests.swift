@@ -69,15 +69,16 @@ final class ToolOwnershipTests: XCTestCase {
         XCTAssertTrue(items.isEmpty)
     }
 
-    func testHeadlineNeverClaimsUpToDateWhenASourceFailed() {
-        func headline(total: Int = 0, failed: Int = 0, enabled: Int = 3, checked: Bool = true) -> String {
-            MenuHeadline.text(total: total, failed: failed, enabledSources: enabled, hasChecked: checked)
+    func testHeadlineOnlyClaimsUpToDateOnceEveryCheckHasFinishedCleanly() {
+        func headline(total: Int = 0, failed: Int = 0, enabled: Int = 3, checking: Bool = false) -> String {
+            MenuHeadline.text(total: total, failed: failed, enabledSources: enabled, isChecking: checking)
         }
         XCTAssertEqual(headline(), "All up to date")
         XCTAssertEqual(headline(failed: 1), "No updates found")
         XCTAssertEqual(headline(total: 1), "1 update")
         XCTAssertEqual(headline(total: 19, failed: 1), "19 updates")
-        XCTAssertEqual(headline(checked: false), "Checking…")
+        XCTAssertEqual(headline(checking: true), "Checking…")
+        XCTAssertEqual(headline(total: 2, checking: true), "2 updates", "a known count stays visible during a re-check")
         XCTAssertEqual(headline(enabled: 0), "No sources enabled")
     }
 }

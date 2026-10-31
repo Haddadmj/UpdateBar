@@ -46,12 +46,13 @@ struct SystemBadge: View {
 /// The large line at the top of the menu.
 ///
 /// Separate from the view because getting it wrong is a claim about the user's
-/// machine: "All up to date" while a source is failing is simply false.
+/// machine: "All up to date" while a source is failing, or while the check that would
+/// establish it is still running, is simply false.
 enum MenuHeadline {
-    static func text(total: Int, failed: Int, enabledSources: Int, hasChecked: Bool) -> String {
+    static func text(total: Int, failed: Int, enabledSources: Int, isChecking: Bool) -> String {
         if enabledSources == 0 { return "No sources enabled" }
         if total > 0 { return total == 1 ? "1 update" : "\(total) updates" }
-        if !hasChecked { return "Checking…" }
+        if isChecking { return "Checking…" }
         return failed > 0 ? "No updates found" : "All up to date"
     }
 }
